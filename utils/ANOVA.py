@@ -59,13 +59,13 @@ class ANOVA:
             #
             #warning
             for interaction in interactions:
-                data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
+                data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False)
                 result.append(data)
             if override_min==True:
                 #
                 #warning
                 for interaction in too_small_interactions:
-                    data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
+                    data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False)
                     result.append(data)
         elif ntile is None:
             n_rows=min(sizes)

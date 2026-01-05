@@ -25,10 +25,27 @@ import pathlib
 
 
 #================================================================================================================================================================= 
-
-#fetch data
+# initial load and process data 
 if 'filepath' not in st.session_state:
-    st.sessoin_state.filepath= pathlib.Path('utils') / 'binned_consumer_habits'
+    st.session_state.filepath= pathlib.Path('utils') / 'shopping_behavior_updated.csv'
+#@st.cache_data
+def load_data(filepath=st.session_state.filepath):
+    df=pd.read_csv(filepath)
+    mymap={'Yes':1,'No':0}
+    for col in ['Subscription Status', 'Discount Applied']:
+        df[col]=df[col].map(mymap).astype('object')
+    def freq_factor(x):
+        if x=='Every 3 Months': return 365/4
+        if x=='Annually': return 365/1
+        if x=='Quarterly': return 365/4
+        if x=='Monthly': return 365/12
+        if x=='Bi-Weekly': return 7/2
+        if x=='Fortnightly': return 14
+        if x=='Weekly': return 7
+    df['Total Days of Patronage']=(df['Frequency of Purchases'].map(freq_factor)*df['Previous Purchases']).astype(int)
+    df=df.drop(columns='Customer ID')
+    return df
+#fetch data
 if 'data' not in st.session_state:
     st.session_state.data = load_data()
 
@@ -80,24 +97,7 @@ st.markdown('...',text_alignment='center')
 #=================================================================================================================================================================
 
 
-# initial load and process data 
-#@st.cache_data
-def load_data(filepath=st.sessoin_state.filepath):
-    df=pd.read_csv(filepath)
-    mymap={'Yes':1,'No':0}
-    for col in ['Subscription Status', 'Discount Applied']:
-        df[col]=df[col].map(mymap).astype('object')
-    def freq_factor(x):
-        if x=='Every 3 Months': return 365/4
-        if x=='Annually': return 365/1
-        if x=='Quarterly': return 365/4
-        if x=='Monthly': return 365/12
-        if x=='Bi-Weekly': return 7/2
-        if x=='Fortnightly': return 14
-        if x=='Weekly': return 7
-    df['Total Days of Patronage']=(df['Frequency of Purchases'].map(freq_factor)*df['Previous Purchases']).astype(int)
-    df=df.drop(columns='Customer ID')
-    return df
+
 
 
 bin=Bin()
@@ -139,7 +139,7 @@ bin_selection_cell=bin_selection_cell[0]
 with bin_selection_cell:
     while len(st.session_state.binned_columns)<1:        
         st.subheader("Bin Continuous Variables", divider='grey', anchor=False, text_alignment='center')
-        get_binned_columns=st.button("Click Here",width='stretch')
+        get_binned_columns=True   #st.button("Click Here",width='stretch',key=2)
         if get_binned_columns:
             bin_dict=get_dict_for_min_bins()
             data=st.session_state.data.copy()
@@ -163,7 +163,7 @@ with bin_selection_cell:
                 except:
                     unbinned_default_start_index=0
                 finally:
-                    unbinned = st.selectbox("", st.session_state.unbinned_columns, index=unbinned_default_start_index,key=None, 
+                    unbinned = st.selectbox("", st.session_state.unbinned_columns, index=unbinned_default_start_index,key=1, 
                                     help=None, on_change=None, args=None, kwargs=None, placeholder=None, 
                                     disabled=False, label_visibility="visible", accept_new_options=False, width="stretch")
                     st.session_state.binned_exists_as = f"{unbinned}->BiNnEd"
@@ -277,7 +277,7 @@ with binned_mu_plot:
 #mu estimator
 st.markdown('...',text_alignment='center')
 st.header("Columnwise Relationships",text_alignment='center')
-st.markdown("Examine Relationships With New Binned Variables, or Explore the Rest of the Dataset.",text_alignment='center')
+st.markdown("Examine Statistical Dependencies that Involve the New Binned Variable(s).",text_alignment='center')
 st.markdown('...',text_alignment='center')
 
 #=================================================================================================================================================================

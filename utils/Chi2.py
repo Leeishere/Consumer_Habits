@@ -10,6 +10,7 @@ import scipy
 from scipy import special
 from scipy.special import chdtrc
 import warnings
+import gc
 
 class Chi2:
     def __init__(self):
@@ -272,6 +273,9 @@ class Chi2:
         proportion_deterministic = (mapping_counts == 1).mean()
         return proportion_deterministic
 
+
+    #this function has room for performance improvement. 
+    #as is it should not break if jax or cupy are imported as np, but it is not optimized for either
     def evidence_is_supercat_given_subcat(self,df,supercat,subcat):
         """
         Measures uncertainty in `super_col` given `sub_col`
@@ -282,11 +286,26 @@ class Chi2:
         # Conditional entropy H(super_col | sub_col)
         # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.crosstab.html
         # so each row sums to 1: pd.crosstab(index,columns,rows/sum_rows)
-        crosstab = pd.crosstab(df[subcat], df[supercat], normalize='index')
+        #crosstab = pd.crosstab(df[subcat], df[supercat], normalize='index')
         # log 2 because we are expressing in bits for interpretability 
         # Shannon Entropy    
-        bits = -(crosstab * np.log2(crosstab + 1e-12)).sum(axis=1).mean()
-        return bits
+        #bits = -(crosstab * np.log2(crosstab + 1e-12)).sum(axis=1).mean()
+        #use groupby and merge to allow acces for more libraries: jax, cupy, cudf
+        #get interaction sizes
+        makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index('subcat').drop(columns=supercat)
+        #sums of interactions within subcat partitons
+        totals_map=makeup_df.groupby(makeup_df.index,as_index=True)['size'].sum().to_frame().rename(columns={'size':'partition_total'})
+        #map total subcat interactions with partitioned subcat interactions
+        makeup_df=pd.merge(makeup_df,totals_map,left_index=True,right_index=True)
+        del totals_map     
+        makeup_df['normalized']=makeup_df['size']/makeup_df['partition_total']
+        makeup_df=makeup_df['normalized'].to_frame().fillna(0)
+        # use log() /log(2) in place of np.log2() to allow drop in replacements for numpy 
+        # where 0.6931471805599453 is log(2)
+        makeup_df['shannon_prep']=np.log(np.asarray(makeup_df['normalized']+1e-12))/0.6931471805599453*np.asarray(makeup_df['normalized'])
+        # return bits
+        return -makeup_df.groupby(makeup_df.index)['shannon_prep'].sum().mean()
+
 
 
     def map_subcat_to_supercat(self,df,supercat,subcat):
