@@ -509,8 +509,8 @@ class MuEstimator:
         ax[0].tick_params(axis="x", labelrotation=45)
         for label in ax[0].get_xticklabels():
             label.set_ha("right")
-        '''if not mu_is_mean:
-            ax[0].set_xlim((0,1))'''
+        if not mu_is_mean:
+            ax[0].set_xlim((0,1))
 
         ax[0].set_facecolor(axis_color)
         ax[0].grid(linewidth=0.3,which='both')
