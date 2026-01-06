@@ -289,7 +289,8 @@ class PoissonSalesForecasting(ProbabilisticModeling):
                                                                                                 season_header_to_partition_sales_amounts: str | None = None,
                                                                                                 individual_sale_amounts: str | None = None,
                                                                                                 figure_figsize:tuple|None=None,
-                                                                                                streamlit:bool=False):
+                                                                                                streamlit:bool=False,
+                                                                                                auto_detect_height:bool=True):
         """
         returns a floating barplot that illustrates period over period sales forecasts based on the poisson distribution seasonal avg purchase amounts
         where y_tick_aggregate_3rd_highest_nplace sets the interval of ticks based on 3 place from left of int (such as decimal when in sci notation)
@@ -305,11 +306,9 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         season_header_to_partition_sales_amounts should be of 'Winter', 'Spring', 'Summer', 'Fall'
         freq_of_purchases should be of 'Every 3 Months', 'Annually', 'Quarterly', 'Monthly', 'Bi-Weekly', 'Fortnightly', 'Weekly'
         figure_figsize should be of tuple(width:int,height:int) | None. 
+        if auto_detect_height==True: autodetect will override figure_figsize[-1] if not None, if None, width will be set to 20 and height autodetected (min height = 4)
         
         each time it is called it stores period data as a class object, hence it will keep 'week', 'month', and 'season' in RAM
-
-        
-
         """
         # a function to update stored data
         self.update_data_model_as_needed(df,occurrence_multiplier,period_,total_prev_purchases,freq_of_purchases,season_header_to_partition_sales_amounts,individual_sale_amounts)
@@ -337,7 +336,18 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         else:
             x_ticks = [f"{period_title} {i+1}" if int((i+1)%13)==1 else str(i+1) for i in range(len(periods))]
             xtick_fontsize=8
-
+        # calculate y ticks and y lim
+        y_lim,y_ticks=self.y_lims_ticks(zero_to_max,y_tick_aggregate_3rd_highest_nplace)
+        # y tick fontsize
+        ytick_fontsize = 15
+        # height
+        if auto_detect_height==True:
+            y_height_inches = ytick_fontsize / 72 * 1.6   # points → inches
+            fig_height = max(4, (len(y_ticks) * y_height_inches)+2)
+            if figure_figsize is None:
+                figure_figsize=(20,fig_height)
+            else:
+                figure_figsize=(figure_figsize[0],fig_height)
         # set figsize
         if figure_figsize is not None:
             plt.figure(figsize=figure_figsize)
@@ -364,8 +374,7 @@ class PoissonSalesForecasting(ProbabilisticModeling):
             color_index+=1
             plt.bar(x=x_ticks[seas:seas+increment_step], height=periods[seas:seas+increment_step], bottom=starts[seas:seas+increment_step],label=f"{sea+' '+period_title}ly Increments",color=color)
         plt.xticks(x_ticks,rotation=45,fontsize=xtick_fontsize,ha='right',color='white')
-        y_lim,y_ticks=self.y_lims_ticks(zero_to_max,y_tick_aggregate_3rd_highest_nplace)
-        plt.yticks(y_ticks,rotation=20,color='white')
+        plt.yticks(y_ticks,rotation=20,fontsize=ytick_fontsize,color='white')
         plt.title(f"Sales Forecast\nHypothetical Sales Per {period_title}\nBased on the Poisson Distribution and Average Per-Sale Amounts by Season",fontweight='bold',color='white')
         plt.ylim(y_lim)
         plt.gcf().set_facecolor("black")   # parchment background
