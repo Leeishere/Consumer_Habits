@@ -137,7 +137,7 @@ b_binned_mu_plot = False
 
 bin_selection_cell=bin_selection_cell[0]
 with bin_selection_cell:
-    while len(st.session_state.binned_columns)<1:        
+    if len(st.session_state.binned_columns)<1:        
         st.subheader("Bin Continuous Variables", divider='grey', anchor=False, text_alignment='center')
         get_binned_columns=True   #st.button("Click Here",width='stretch',key=2)
         if get_binned_columns:
@@ -429,7 +429,7 @@ def floating_cdf_plot(df=st.session_state.data,period='month'):
     global model_psn
     model_psn.floating_bar_plot(df,period,occurrence_multiplier=1.0,y_tick_aggregate_3rd_highest_nplace=0.5,  
                                 total_prev_purchases= None, freq_of_purchases = None, season_header_to_partition_sales_amounts= None,
-                                individual_sale_amounts= None, figure_figsize=(20,8), streamlit=True)
+                                individual_sale_amounts= None, figure_figsize=(20,8), streamlit=True, auto_detect_height=True)
 
 col1a, col2a = st.columns([.25, .75],gap='large',vertical_alignment='top',border=True)
 col3a        = st.columns(1      ,gap='large',vertical_alignment='top',border=True)
