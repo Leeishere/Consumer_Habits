@@ -292,7 +292,7 @@ class Chi2:
         #bits = -(crosstab * np.log2(crosstab + 1e-12)).sum(axis=1).mean()
         #use groupby and merge to allow acces for more libraries: jax, cupy, cudf
         #get interaction sizes
-        makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index('subcat').drop(columns=supercat)
+        makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index(subcat).drop(columns=supercat)
         #sums of interactions within subcat partitons
         totals_map=makeup_df.groupby(makeup_df.index,as_index=True)['size'].sum().to_frame().rename(columns={'size':'partition_total'})
         #map total subcat interactions with partitioned subcat interactions
