@@ -66,10 +66,15 @@ class Chi2:
         """
         test of independence
         """
-        observed = self.frequencies_table(data, x_1, x_2, kind='frequency')
-        expected = ( observed.sum(axis=1).to_numpy().reshape(-1,1)@observed.sum(axis=0).to_numpy().reshape(1,-1) ) / observed.sum().sum()
-        chi_stat = (( (observed-expected)**2)/expected).sum().sum()
-        dof      = (observed.shape[0]-1)*(observed.shape[1]-1)
+        obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
+        sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
+        sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
+        dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
+        obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
+        obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
+        grand_total=obs['observed'].sum().sum()
+        obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
+        chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
         p_value  = scipy.special.chdtrc(dof,chi_stat)
         return p_value
 
