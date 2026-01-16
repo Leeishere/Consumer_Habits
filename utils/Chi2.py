@@ -62,24 +62,45 @@ class Chi2:
         return frequencies_table
         
     ## consider adding a flag if any cell has an expected value <
-    def chi_squared_independence(self,data,x_1,x_2):     
+    def chi_squared_independence(self,data,x_1,x_2,is_cudf:bool=False):     
         """
         test of independence
         """
-        obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
-        sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
-        sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
-        dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
-        obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
-        obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
-        grand_total=obs['observed'].sum().sum()
-        obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
-        chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
-        p_value  = scipy.special.chdtrc(dof,chi_stat)
-        return p_value
+        if is_cudf==True:
+            obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
+            sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
+            sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
+            dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
+            obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
+            obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
+            grand_total=obs['observed'].sum().sum()
+            obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
+            chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
+            p_value  = scipy.special.chdtrc(dof,chi_stat)
+            return p_value
+        else:
+            try:
+                observed = self.frequencies_table(data, x_1, x_2, kind='frequency')
+                expected = ( observed.sum(axis=1).to_numpy().reshape(-1,1)@observed.sum(axis=0).to_numpy().reshape(1,-1) ) / observed.sum().sum()
+                chi_stat = (( (observed-expected)**2)/expected).sum().sum()
+                dof      = (observed.shape[0]-1)*(observed.shape[1]-1)
+                p_value  = scipy.special.chdtrc(dof,chi_stat)
+                return p_value
+            except:
+                obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
+                sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
+                sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
+                dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
+                obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
+                obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
+                grand_total=obs['observed'].sum().sum()
+                obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
+                chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
+                p_value  = scipy.special.chdtrc(dof,chi_stat)
+                return p_value
 
 
-    def test_all_cat_columns_chi_independence(self,data,columns=None,additional=True):
+    def test_all_cat_columns_chi_independence(self,data,columns=None,additional=True,is_cudf:bool=False):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         if columns != None, additional==True will add columns to the default, else additional=False will only consider columns included in the args
@@ -92,7 +113,7 @@ class Chi2:
         combinations=list(itertools.combinations(columns,2))
         res_dict={}
         for combo in combinations:
-            p=self.chi_squared_independence(data,combo[0],combo[1])
+            p=self.chi_squared_independence(data,combo[0],combo[1],is_cudf=is_cudf)
             res_dict[(combo[0],combo[1])]=[p]
         res = pd.DataFrame(res_dict).T.reset_index(drop=False)
         res.columns=['category_a','category_b','P-value']
@@ -261,12 +282,13 @@ class Chi2:
 
     #============================================================================================================================================================
     #============================================================================================================================================================
-    #functions that investigate is feature relationships are due to on being a supercategory of the other, where if it were partitioned, it would segment the subcat with minimal overlap of shared variable values
+    #functions that investigate fs feature relationships are due to on being a supercategory of the other, where if it were partitioned, it would segment the subcat with minimal overlap of shared variable values
 
     def proportion_are_deterministic_subcats(self,df, super_col, sub_col):
         """
         return num_deterministic_subcats/num_non_deterministic_subcats
         takes a dataframe, a potential supercat, and a potential subcat
+        returns number of subcats that are restricted to a partition defined by exactly one supercat over total times any subcat is paired with a test_supercat
         """
         data = df[[super_col, sub_col]].copy()
         
@@ -279,37 +301,63 @@ class Chi2:
         return proportion_deterministic
 
 
-    #this function has room for performance improvement. 
-    #as is it should not break if jax or cupy are imported as np, but it is not optimized for either
-    def evidence_is_supercat_given_subcat(self,df,supercat,subcat):
+    def evidence_is_supercat_given_subcat(self,df,supercat,subcat,is_cudf:bool=False):
         """
         Measures uncertainty in `super_col` given `sub_col`
         where:
         0 bits -> perfect supercategory
         Higher values -> more ambiguity
         """
-        # Conditional entropy H(super_col | sub_col)
-        # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.crosstab.html
-        # so each row sums to 1: pd.crosstab(index,columns,rows/sum_rows)
-        #crosstab = pd.crosstab(df[subcat], df[supercat], normalize='index')
-        # log 2 because we are expressing in bits for interpretability 
-        # Shannon Entropy    
-        #bits = -(crosstab * np.log2(crosstab + 1e-12)).sum(axis=1).mean()
-        #use groupby and merge to allow acces for more libraries: jax, cupy, cudf
-        #get interaction sizes
-        makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index(subcat).drop(columns=supercat)
-        #sums of interactions within subcat partitons
-        totals_map=makeup_df.groupby(makeup_df.index,as_index=True)['size'].sum().to_frame().rename(columns={'size':'partition_total'})
-        #map total subcat interactions with partitioned subcat interactions
-        makeup_df=pd.merge(makeup_df,totals_map,left_index=True,right_index=True)
-        del totals_map     
-        makeup_df['normalized']=makeup_df['size']/makeup_df['partition_total']
-        makeup_df=makeup_df['normalized'].to_frame().fillna(0)
-        # use log() /log(2) in place of np.log2() to allow drop in replacements for numpy 
-        # where 0.6931471805599453 is log(2)
-        makeup_df['shannon_prep']=np.log(np.asarray(makeup_df['normalized']+1e-12))/0.6931471805599453*np.asarray(makeup_df['normalized'])
-        # return bits
-        return -makeup_df.groupby(makeup_df.index)['shannon_prep'].sum().mean()
+        # Conditional entropy H(super_col | sub_col)-> note that this is H not P
+        if is_cudf==True:
+            # use groupby and merge because cudf crosstab and pivot aren't straighforward at this time 
+            # where pivot would require aggrigation in a groupby anyways
+            # .div()
+            # https://docs.rapids.ai/api/cudf/stable/user_guide/api_docs/api/cudf.dataframe.div/#cudf.DataFrame.div
+            # axis ->Only 0 is supported for series, 1 or columns supported for dataframe
+            # .crosstab()
+            # https://docs.rapids.ai/api/cudf/stable/user_guide/api_docs/api/cudf.crosstab/#cudf.crosstab
+            # normalize -> Not supported
+            makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index(subcat).drop(columns=supercat)
+            #sums of interactions within subcat partitons
+            totals_map=makeup_df.groupby(makeup_df.index,as_index=True)['size'].sum().to_frame().rename(columns={'size':'partition_total'})
+            #map total subcat interactions with partitioned subcat interactions
+            makeup_df=pd.merge(makeup_df,totals_map,left_index=True,right_index=True)
+            del totals_map     
+            makeup_df['normalized']=makeup_df['size']/makeup_df['partition_total']
+            makeup_df=makeup_df['normalized'].to_frame().fillna(0)
+            # use log() /log(2) in place of np.log2() to allow drop in replacements for numpy 
+            # where 0.6931471805599453 is log(2)
+            makeup_df['shannon_prep']=np.log(np.asarray(makeup_df['normalized']+1e-12))/0.6931471805599453*np.asarray(makeup_df['normalized'])
+            # return bits
+            return -makeup_df.groupby(makeup_df.index)['shannon_prep'].sum().mean()
+        else:
+            try:
+                # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.crosstab.html
+                # so each row sums to 1: pd.crosstab(index,columns,rows/sum_rows)
+                crosstab = pd.crosstab(df[subcat], df[supercat], normalize='index')
+                # Shannon Entropy
+                # log 2 because we are expressing in bits for interpretability 
+                # # use log() /log(2) in place of np.log2() to allow drop in replacements for numpy 
+                # where 0.6931471805599453 is log(2)    
+                bits = -(crosstab * np.log(crosstab + 1e-12)/0.6931471805599453).sum(axis=1).mean()
+                return bits
+            except:
+                #fallback to groupby and merge in case of crosstab support issues
+                makeup_df=df[[subcat,supercat]].copy().groupby([subcat,supercat],as_index=False,observed=False).size().set_index(subcat).drop(columns=supercat)
+                #sums of interactions within subcat partitons
+                totals_map=makeup_df.groupby(makeup_df.index,as_index=True)['size'].sum().to_frame().rename(columns={'size':'partition_total'})
+                #map total subcat interactions with partitioned subcat interactions
+                makeup_df=pd.merge(makeup_df,totals_map,left_index=True,right_index=True)
+                del totals_map     
+                makeup_df['normalized']=makeup_df['size']/makeup_df['partition_total']
+                makeup_df=makeup_df['normalized'].to_frame().fillna(0)
+                # use log() /log(2) in place of np.log2() to allow drop in replacements for numpy 
+                # where 0.6931471805599453 is log(2)
+                makeup_df['shannon_prep']=np.log(np.asarray(makeup_df['normalized']+1e-12))/0.6931471805599453*np.asarray(makeup_df['normalized'])
+                # return bits
+                return -makeup_df.groupby(makeup_df.index)['shannon_prep'].sum().mean()
+                
 
 
 
@@ -361,7 +409,7 @@ class Chi2:
         return frame
 
 
-    def test_many_cats_for_evidence_of_super_cats(self,df,columns:list):
+    def test_many_cats_for_evidence_of_super_cats(self,df,columns:list,is_cudf:bool=False):
         """
         takes a data frame and list of columns
         evidence is not probabilistic
@@ -378,8 +426,8 @@ class Chi2:
         l,r=0,1
         while l<len(columns)-1:
             if data[columns[l]].nunique()<=data[columns[r]].nunique():
-                arrangement=(columns[l],columns[r],self.evidence_is_supercat_given_subcat(data,columns[l],columns[r]))
-            else: arrangement=(columns[r],columns[l],self.evidence_is_supercat_given_subcat(data,columns[r],columns[l]))
+                arrangement=(columns[l],columns[r],self.evidence_is_supercat_given_subcat(data,columns[l],columns[r]),is_cudf)
+            else: arrangement=(columns[r],columns[l],self.evidence_is_supercat_given_subcat(data,columns[r],columns[l]),is_cudf)
             res.append(arrangement)
             if r>=len(columns)-1:
                 l+=1
