@@ -426,8 +426,8 @@ class Chi2:
         l,r=0,1
         while l<len(columns)-1:
             if data[columns[l]].nunique()<=data[columns[r]].nunique():
-                arrangement=(columns[l],columns[r],self.evidence_is_supercat_given_subcat(data,columns[l],columns[r]),is_cudf)
-            else: arrangement=(columns[r],columns[l],self.evidence_is_supercat_given_subcat(data,columns[r],columns[l]),is_cudf)
+                arrangement=(columns[l],columns[r],self.evidence_is_supercat_given_subcat(data,columns[l],columns[r],is_cudf))
+            else: arrangement=(columns[r],columns[l],self.evidence_is_supercat_given_subcat(data,columns[r],columns[l],is_cudf))
             res.append(arrangement)
             if r>=len(columns)-1:
                 l+=1
@@ -436,13 +436,13 @@ class Chi2:
                 r+=1
         return pd.DataFrame(res,columns=['supercategory', 'subcategory', 'ShannonEntropyBits'])
 
-    def imperfect_super_subcat_pairs(self,df,columns:list,max_evidence=0.2):
+    def imperfect_super_subcat_pairs(self,df,columns:list,max_evidence=0.2,is_cudf:bool=False):
         """
         calls test_many_cats_for_evidence_of_super_cats_cat and filters results to return super&subcat pairs
         filtered by max_evidence
         where max_evidence is the log2 binary evidence that of proof against a perfect cat&subcat relationship
         """
-        frame=self.test_many_cats_for_evidence_of_super_cats(df,columns)
+        frame=self.test_many_cats_for_evidence_of_super_cats(df,columns,is_cudf)
         frame=frame.loc[frame['ShannonEntropyBits']<=max_evidence].sort_values(by=['supercategory','subcategory']).reset_index(drop=True)
         return frame
         
