@@ -13,7 +13,7 @@ class Coefficient:
     def __init__(self):
         self.one_way_pearson_coefficient_overview=None
 
-    def test_all_num_num_pearson_coefficient(self,data,self_detect:bool=True,numeric_columns:list=None,pseudo_numeric_columns:list=None,detect_pseudo_numeric=True):
+    def test_all_num_num_pearson_coefficient(self,data,self_detect:bool=True,numeric_columns:list|None=None,pseudo_numeric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         Where pseudo_numeric can be numeric labeled categorical or ordinal data
         """
@@ -41,19 +41,19 @@ class Coefficient:
         return num_data
     
     
-    def num_num_column_pearson_coefficient_relationships(self,data, corr=0.6,reject=True,self_detect:bool=True,numeric_columns:list=None,pseudo_numeric_columns:list=None,detect_pseudo_numeric=True):
+    def num_num_column_pearson_coefficient_relationships(self,data, corr=0.6,keep_correlated:bool=True,self_detect:bool=True,numeric_columns:list|None=None,pseudo_numeric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         takes corr as a parameter 
         if reject is True, observations with correlations >= corr are returned.
         """
         num_data=self.test_all_num_num_pearson_coefficient(data,self_detect,numeric_columns,pseudo_numeric_columns,detect_pseudo_numeric)
-        if reject==False:
+        if keep_correlated==True:
             num_data=num_data.loc[np.abs(num_data['Correlation'])>=corr].reset_index(drop=True)
         else: num_data = num_data.loc[np.abs(num_data['Correlation'])<corr].reset_index(drop=True)
         return num_data
     
 
-    def test_all_num_num_spearman_coefficient(self,data,self_detect:bool=True,numeric_columns:list=None,pseudo_numeric_columns:list=None,detect_pseudo_numeric=True):
+    def test_all_num_num_spearman_coefficient(self,data,self_detect:bool=True,numeric_columns:list|None=None,pseudo_numeric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         Where pseudo_numeric can be numeric labeled categorical or ordinal data
         """
@@ -81,13 +81,12 @@ class Coefficient:
         return num_data
 
 
-    def num_num_column_spearman_coefficient_relationships(self,data, corr=0.6,reject=True,self_detect:bool=True,numeric_columns:list=None,pseudo_numeric_columns:list=None,detect_pseudo_numeric=True):
+    def num_num_column_spearman_coefficient_relationships(self,data, corr=0.6,keep_correlated:bool=True,self_detect:bool=True,numeric_columns:list|None=None,pseudo_numeric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         takes corr as a parameter 
-        if reject is True, observations with correlations >= corr are returned.
         """
         num_data=self.test_all_num_num_spearman_coefficient(data,self_detect,numeric_columns,pseudo_numeric_columns,detect_pseudo_numeric)
-        if reject==False:
+        if keep_correlated==True:
             num_data=num_data.loc[np.abs(num_data['Correlation'])>=corr].reset_index(drop=True)
         else: num_data = num_data.loc[np.abs(num_data['Correlation'])<corr].reset_index(drop=True)
         return num_data

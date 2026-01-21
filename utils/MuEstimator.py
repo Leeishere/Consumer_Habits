@@ -350,6 +350,8 @@ class MuEstimator:
         returns a new dataframe with <partition column>, target column, num_observations column, upper column, and lower column.
         where upper and lower are the mu estimate intervals
         """
+        if type(partition_cols)==str:
+            partition_cols=[partition_cols]
         if partition_by is None or partition_by == []:
             estimate_df=self.get_single_variable_proportions(dataframe[target_col])
         else:
@@ -371,6 +373,8 @@ class MuEstimator:
         takes dataframe, a target column, a confidence interval[default 0.95], a list of 0 to n partition columns to group by, and sort[default None].
         return a grouped dataframe with aggregated columns: 'min','mean','median','max','std','size','lower','upper'
         """
+        if type(partition_cols)==str:
+            partition_cols=[partition_cols]
         if partition_cols==None or partition_cols==[]:
             estimate_df = pd.DataFrame({target_col:[target_col],'min':[df[target_col].min()],'mean':[df[target_col].mean()],'median':[df[target_col].median()],'max':[df[target_col].max()],'std':[df[target_col].std()],'size':[df[target_col].count()]})
         else:
@@ -393,7 +397,8 @@ class MuEstimator:
         intersects is a list of feature partitions [it is partition_cols, and it is unused downstream. It is retained for features that aren't yet supported], 
         target col is the string title of the target col that represents the mu
         """
-        
+        if type(partition_cols)==str:
+            partition_cols=[partition_cols]
         plot_df=plot_df_.copy()
         if target_col not in plot_df.columns:
             plot_df[target_col]=target_col
@@ -563,6 +568,8 @@ class MuEstimator:
         else:
             fig = plt.gcf()
             st.pyplot(fig,clear_figure=True)  
+        
+        plt.rcdefaults()
 
 
 

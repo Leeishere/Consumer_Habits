@@ -15,6 +15,7 @@ class RegressionOrdinalizer:
                                        'intercept':[],
                                        'mode_variability_instructions':[]
                                        }
+        self.ordinalization_lookup_maps = {}
         
 
     def ordinalize(self,dataframe_x_y:pd.DataFrame,center:str):
@@ -106,6 +107,7 @@ class RegressionOrdinalizer:
             self.column_ordinal_records['mode_variability_instructions'].append(
                 mode_trunc if best['center'] == 'mode' else None
             )
+            
 
     def ranking_ordinalizer(self, X_y_df, center:str|None=None, mode_trunc:tuple|list=None):
         """
@@ -139,8 +141,9 @@ class RegressionOrdinalizer:
             stats  = X_y_df.groupby(x,as_index=False)[y].agg([center,'size'])
         stats = stats.sort_values(by=[center,'size'],ascending=[True,False]).reset_index(drop=True)
         stats[f"{x}_Ordinalized"] = stats.index
-
+        self.ordinalization_lookup_maps[f"{x}_Ordinalized"]=stats[[x,f"{x}_Ordinalized"]]
         return stats[[x,f"{x}_Ordinalized"]]
+    
     
     def center_ordinalizer(self, X_y_df, center:str|None=None, mode_trunc:tuple|list=None):
         """
@@ -171,10 +174,9 @@ class RegressionOrdinalizer:
         else:
             stats  = X_y_df.groupby(x,as_index=False)[y].agg([center])
         stats = stats.rename(columns={center:f"{x}_Ordinalized"})
-
+        self.ordinalization_lookup_maps[f"{x}_Ordinalized"]=stats[[x,f"{x}_Ordinalized"]]
         return stats[[x,f"{x}_Ordinalized"]]
-
-
+    
 
     def create_ordinalized_columns(self, dataframe:pd.DataFrame, target_column:str, feature_columns:list|None, center:str|None, rank:bool=False, mode_trunc:tuple|list=None):
         """

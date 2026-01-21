@@ -36,13 +36,13 @@ class Bin(ANOVA, Coefficient):
     # of column relationships
     #=============================================================================================================================================================
     #examine  relationships prior to binning
-    def pre_bin_relationships(self,df,cat_num_alpha:float=0.05,num_num_corr:float=0.6,numeric_columns=None,categoric_columns=None): 
+    def pre_bin_relationships(self,df,cat_num_alpha:float=0.05,num_num_corr:float=0.6,numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=False): 
         """
         prepares data for Bin().pair_column_headers()
         #it calls kruskal_wallis or spearman coefficient to evaluate relationships
         """
-        cat_num_df=self.cat_num_column_kruskal_wallis_relationships(df, alpha=cat_num_alpha,reject=True, numeric_columns=numeric_columns,categoric_columns=categoric_columns)
-        num_num_df=self.num_num_column_spearman_coefficient_relationships(df, corr=num_num_corr,reject=False,self_detect=False,numeric_columns=numeric_columns)
+        cat_num_df=self.cat_num_column_kruskal_wallis_relationships(df, alpha=cat_num_alpha,keep_similar=False, numeric_columns=numeric_columns,categoric_columns=categoric_columns,detect_pseudo_numeric=detect_pseudo_numeric)
+        num_num_df=self.num_num_column_spearman_coefficient_relationships(df, corr=num_num_corr,keep_correlated=True,self_detect=True,numeric_columns=numeric_columns,detect_pseudo_numeric=detect_pseudo_numeric)
         return num_num_df,cat_num_df
     
     def pair_column_headers(self,num_num_df,cat_num_df):

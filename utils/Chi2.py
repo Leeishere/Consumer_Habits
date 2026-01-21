@@ -39,7 +39,7 @@ class Chi2:
         value_col='pct_makeup' if kind=='joint_probability' else 'count'
         contingency_table=base_quantity_table.pivot(index=x_1,columns=x_2,values=value_col).reset_index(drop=False)
         del base_quantity_table
-        contingency_table.columns.name=None
+        contingency_table.columns.name=x_2
         contingency_table['right_margin'.upper()]=contingency_table.iloc[:,1:].sum(axis=1)
         contingency_table=pd.concat( [contingency_table, pd.Series(['bottom_margin'.upper()]+list(contingency_table.iloc[:,1:].sum(axis=0)),index=contingency_table.columns).to_frame().T   ]  )
         contingency_table=contingency_table.set_index(contingency_table.columns[0])
@@ -100,17 +100,20 @@ class Chi2:
                 return p_value
 
 
-    def test_all_cat_columns_chi_independence(self,data,columns=None,additional=True,is_cudf:bool=False):
+    def test_all_cat_columns_chi_independence(self,data,columns:list|None=None,additional:bool=True,target:list|None=None,is_cudf:bool=False):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         if columns != None, additional==True will add columns to the default, else additional=False will only consider columns included in the args
+        if target is not None it should be a list. Only combinations that include target will be returned
         """
         if columns is None:
             columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
         elif additional is True and columns is not None: 
             columns=list(set(list(data.select_dtypes('object').columns) + list(data.select_dtypes('category').columns) + list(columns)))
-
-        combinations=list(itertools.combinations(columns,2))
+        if target==None:
+            combinations=list(itertools.combinations(columns,2))
+        else: 
+            combinations = [(targ, col) for targ in target for col in columns if targ != col]
         res_dict={}
         for combo in combinations:
             p=self.chi_squared_independence(data,combo[0],combo[1],is_cudf=is_cudf)
@@ -121,14 +124,16 @@ class Chi2:
         return res
 
 
-    def categorical_column_relationships(self,data, alpha=0.05, columns=None, additional=True):
+    def categorical_column_relationships(self,data, alpha=0.05, keep_similar:bool=False, columns=None, additional=True,target:list|None=None,is_cudf:bool=False):
         """
-        where additional true and colomns can overide default self detect
+        where additional true and columns can overide default self detect
         such as:
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         if columns != None, additional==True will add columns to the default, else additional=False will only consider columns included in the args
         """
-        p_table=self.test_all_cat_columns_chi_independence(data,columns,additional)
+        p_table=self.test_all_cat_columns_chi_independence(data,columns,additional,target,is_cudf)
+        if keep_similar==True:
+            return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
         return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
 
 

@@ -244,7 +244,7 @@ class ANOVA:
 
         return p_value
 
-    def test_all_cat_num_ANOVA(self,data,numeric_columns=None,categoric_columns=None,detect_pseudo_numeric=True):
+    def test_all_cat_num_ANOVA(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         
         """
@@ -272,7 +272,7 @@ class ANOVA:
         self.one_way_df_ANOVA_overview=res
         return res
         
-    def cat_num_column_ANOVA_relationships(self,data, alpha=0.05,keep_similar=False, numeric_columns:list=None,categoric_columns:list=None,detect_pseudo_numeric=True):
+    def cat_num_column_ANOVA_relationships(self,data, alpha=0.05,keep_similar=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         takes alpha as a parameter 
         if keep_similar==False, observations with p_values<alpha are returned
@@ -317,6 +317,7 @@ class ANOVA:
         merged['P-value'] = 2 * scipy.stats.t.sf( np.abs(merged['t_score']),  merged['dof']  )
         merged=merged.rename(columns={'size1':'n_samples_1','size2':'n_samples_2'})
         merged=pd.concat([merged[['subcat_1','subcat_2','P-value','n_samples_1','n_samples_2']],nandf])
+        merged['n_samples_2']=merged['n_samples_2'].astype(int)
         return merged
 
     def subcategory_similarities(self,catx_numy_df,alpha=0.05,return_similar=False,min_observations:int=None):
@@ -360,7 +361,7 @@ class ANOVA:
         p_value = scipy.stats.chi2.sf(h_statistic, dof)
         return p_value
     
-    def test_all_cat_num_kruskal_wallis(self,data,numeric_columns=None,categoric_columns=None,detect_pseudo_numeric=True):
+    def test_all_cat_num_kruskal_wallis(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         
         """
@@ -388,15 +389,16 @@ class ANOVA:
         self.one_way_kruskal_wallis_df_overview=res
         return res
 
-    def cat_num_column_kruskal_wallis_relationships(self,data, alpha=0.05,reject=True, numeric_columns:list=None,categoric_columns:list=None,detect_pseudo_numeric=True):
+    def cat_num_column_kruskal_wallis_relationships(self,data, alpha=0.05,keep_similar:bool=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
         """
         takes alpha as a parameter 
-        if reject is True, observations with p_values<alpha are returned
+        if keep_similar==False, observations with p_values<alpha are returned
+        else p_values>=alpha are returned
         """
         p_table=self.test_all_cat_num_kruskal_wallis(data,numeric_columns,categoric_columns,detect_pseudo_numeric)
-        if reject==False:
-            return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
-        return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
+        if keep_similar==False:
+            return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
+        return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
 
     #=========================================================================================================================================================
     #=========================================================================================================================================================

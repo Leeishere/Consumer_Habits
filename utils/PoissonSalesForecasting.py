@@ -390,7 +390,7 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         else:
             fig = plt.gcf()
             st.pyplot(fig,clear_figure=True) 
-
+        plt.rcdefaults()
 
 
 
@@ -458,6 +458,7 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         else:
             fig = plt.gcf()
             st.pyplot(fig,clear_figure=True)
+        plt.rcdefaults()
 
 
 
