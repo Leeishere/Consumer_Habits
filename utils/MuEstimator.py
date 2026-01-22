@@ -350,8 +350,8 @@ class MuEstimator:
         returns a new dataframe with <partition column>, target column, num_observations column, upper column, and lower column.
         where upper and lower are the mu estimate intervals
         """
-        if type(partition_cols)==str:
-            partition_cols=[partition_cols]
+        if type(partition_by)==str:
+            partition_cols=[partition_by]
         if partition_by is None or partition_by == []:
             estimate_df=self.get_single_variable_proportions(dataframe[target_col])
         else:
