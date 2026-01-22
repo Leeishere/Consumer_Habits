@@ -139,7 +139,7 @@ class RegressionOrdinalizer:
             stats  = pd.merge(stats,sizes, on=x)
         else:
             stats  = X_y_df.groupby(x,as_index=False)[y].agg([center,'size'])
-        stats = stats.sort_values(by=[center,'size'],ascending=[True,False]).reset_index(drop=True)
+        stats = stats.sort_values(by=[center,'size'],ascending=[True,True]).reset_index(drop=True)
         stats[f"{x}_Ordinalized"] = stats.index
         self.ordinalization_lookup_maps[f"{x}_Ordinalized"]=stats[[x,f"{x}_Ordinalized"]]
         return stats[[x,f"{x}_Ordinalized"]]
