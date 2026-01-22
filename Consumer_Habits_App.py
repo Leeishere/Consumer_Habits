@@ -206,9 +206,9 @@ with pre_bin_relationships:
     if b_pre_binned_lineplot_cell==False:
         st.info("",icon="🐍")
     else:
-        pre_numcat=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,reject=True, numeric_columns=[st.session_state.curr_but_original_unbinned],categoric_columns=None,detect_pseudo_numeric=True)
+        pre_numcat=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,keep_similar=False, numeric_columns=[st.session_state.curr_but_original_unbinned],categoric_columns=None,detect_pseudo_numeric=True)
         pre_numcat.columns=['col_a','col_b','P-value']
-        pre_numnum=coeff.num_num_column_spearman_coefficient_relationships(st.session_state.data, corr=0.6,reject=False,self_detect=True,numeric_columns=None,pseudo_numeric_columns=None,detect_pseudo_numeric=True)  
+        pre_numnum=coeff.num_num_column_spearman_coefficient_relationships(st.session_state.data, corr=0.6,keep_correlated=True,self_detect=True,numeric_columns=None,pseudo_numeric_columns=None,detect_pseudo_numeric=True)  
         pre_numnum.columns=['col_a','col_b','Coefficient']
         pre_combined=pd.concat([pre_numcat,pre_numnum])
         pre_combined=pre_combined.loc[( (pre_combined['col_a']==st.session_state.curr_but_original_unbinned)|(pre_combined['col_b']==st.session_state.curr_but_original_unbinned) )&(pre_combined['col_a']!=pre_combined['col_b'])&~( (pre_combined['col_a']+"->BiNnEd"==pre_combined['col_b'])|(pre_combined['col_a']==pre_combined['col_b']+"->BiNnEd") )].round(3)
@@ -241,13 +241,13 @@ with post_binned_relationships:
     if b_post_binned_countplot_cell==False:
         st.info("",icon="🐍")
     else:
-        post_numcat=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,reject=True, numeric_columns=None,categoric_columns=None,detect_pseudo_numeric=True)
+        post_numcat=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,keep_similar=False, numeric_columns=None,categoric_columns=None,detect_pseudo_numeric=True)
         post_numcat.columns=['col_a','col_b','P-value']
-        post_numnum=coeff.num_num_column_spearman_coefficient_relationships(st.session_state.data, corr=0.6,reject=False,self_detect=True,numeric_columns=None,pseudo_numeric_columns=[st.session_state.binned_exists_as],detect_pseudo_numeric=True)  
+        post_numnum=coeff.num_num_column_spearman_coefficient_relationships(st.session_state.data, corr=0.6,keep_correlated=True,self_detect=True,numeric_columns=None,pseudo_numeric_columns=[st.session_state.binned_exists_as],detect_pseudo_numeric=True)  
         post_numnum.columns=['col_a','col_b','Coefficient']
-        post_catcat=chi.categorical_column_relationships(st.session_state.data, alpha=0.05, columns=None, additional=True)
+        post_catcat=chi.categorical_column_relationships(st.session_state.data, alpha=0.05, keep_similar=False, columns=None, additional=True)
         post_catcat.columns=['col_a','col_b','P-value']
-        post_catnum=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,reject=True, numeric_columns=None,categoric_columns=[st.session_state.binned_exists_as],detect_pseudo_numeric=True)   
+        post_catnum=anova.cat_num_column_kruskal_wallis_relationships(st.session_state.data, alpha=0.05,keep_similar=False, numeric_columns=None,categoric_columns=[st.session_state.binned_exists_as],detect_pseudo_numeric=True)   
         post_catnum.columns=['col_a','col_b','P-value']
         post_combined=pd.concat([post_catcat,post_catnum,post_numcat,post_numnum])
         post_combined=post_combined.loc[( (post_combined['col_a']==st.session_state.binned_exists_as)|(post_combined['col_b']==st.session_state.binned_exists_as) )&(post_combined['col_a']!=post_combined['col_b'])&~( (post_combined['col_a']+"->BiNnEd"==post_combined['col_b'])|(post_combined['col_a']==post_combined['col_b']+"->BiNnEd") )].round(3)
