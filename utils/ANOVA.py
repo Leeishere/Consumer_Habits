@@ -244,25 +244,44 @@ class ANOVA:
 
         return p_value
 
-    def test_all_cat_num_ANOVA(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
+    def test_all_cat_num_ANOVA(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
         """
         
         """
         # Where x is categorical and y is nuneric
         # x columns
+        pseudo_num=[]
+        if detect_pseudo_numeric==True:
+            for col in data.select_dtypes('object').columns:
+                if pd.to_numeric(data[col], errors='coerce').notna().all():
+                    pseudo_num.append(col)
+
         if categoric_columns is None: 
             categoric_columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
 
         # y columns
         if numeric_columns is None:
-            pseudo_num=[]
-            if detect_pseudo_numeric==True:
-                for col in categoric_columns:
-                    if pd.to_numeric(data[col], errors='coerce').notna().all():
-                        pseudo_num.append(col)
-            numeric_columns=list(data.select_dtypes('number').columns)+pseudo_num
+            numeric_columns=list(data.select_dtypes('number').columns)
+        numeric_columns=list(set(numeric_columns+pseudo_num))
 
-        combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if cat_col!=num_col]
+        #conditional statements to consider target columns when defined or every valid combinanation otehrwise
+        if (categoric_target is None) and (numeric_target is not None):
+            if isinstance(numeric_target,str):
+                numeric_target=[numeric_target]                
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (num_col in numeric_target))]
+        elif (categoric_target is not None) and (numeric_target is None):
+            if isinstance(categoric_target,str):
+                categoric_target=[categoric_target]
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (cat_col in categoric_target))]
+        elif (categoric_target is not None) and (numeric_target is not None):
+            if isinstance(numeric_target,str):
+                numeric_target=[numeric_target]  
+            if isinstance(categoric_target,str):
+                categoric_target=[categoric_target]
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (cat_col in categoric_target) and (num_col in numeric_target))]
+        else:
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if cat_col!=num_col]  
+
         res_dict={}
         for combo in combinations:
             p=self.one_way_ANOVA(data[[*combo]])
@@ -272,13 +291,13 @@ class ANOVA:
         self.one_way_df_ANOVA_overview=res
         return res
         
-    def cat_num_column_ANOVA_relationships(self,data, alpha=0.05,keep_similar=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
+    def cat_num_column_ANOVA_relationships(self,data, alpha=0.05,keep_similar=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
         """
         takes alpha as a parameter 
         if keep_similar==False, observations with p_values<alpha are returned
         else p_values>=alpha are returned
         """
-        p_table=self.test_all_cat_num_ANOVA(data,numeric_columns,categoric_columns,detect_pseudo_numeric)
+        p_table=self.test_all_cat_num_ANOVA(data,numeric_columns,categoric_columns,detect_pseudo_numeric,categoric_target,numeric_target)
         if keep_similar==True:
             return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
         return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
@@ -361,25 +380,46 @@ class ANOVA:
         p_value = scipy.stats.chi2.sf(h_statistic, dof)
         return p_value
     
-    def test_all_cat_num_kruskal_wallis(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
+    def test_all_cat_num_kruskal_wallis(self,data, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
         """
         
         """
         # Where x is categorical and y is nuneric
         # x columns
+
+        pseudo_num=[]
+        if detect_pseudo_numeric==True:
+            for col in data.select_dtypes('object').columns:
+                if pd.to_numeric(data[col], errors='coerce').notna().all():
+                    pseudo_num.append(col)
+
         if categoric_columns is None: 
             categoric_columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
+        
 
         # y columns
         if numeric_columns is None:
-            pseudo_num=[]
-            if detect_pseudo_numeric==True:
-                for col in categoric_columns:
-                    if pd.to_numeric(data[col], errors='coerce').notna().all():
-                        pseudo_num.append(col)
-            numeric_columns=list(data.select_dtypes('number').columns)+pseudo_num
+            numeric_columns=list(data.select_dtypes('number').columns)
+        numeric_columns=list(set(numeric_columns+pseudo_num))
 
-        combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if cat_col!=num_col]
+        #conditional statements to consider target columns when defined or every valid combinanation otehrwise
+        if (categoric_target is None) and (numeric_target is not None):
+            if isinstance(numeric_target,str):
+                numeric_target=[numeric_target]                
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (num_col in numeric_target))]
+        elif (categoric_target is not None) and (numeric_target is None):
+            if isinstance(categoric_target,str):
+                categoric_target=[categoric_target]
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (cat_col in categoric_target))]
+        elif (categoric_target is not None) and (numeric_target is not None):
+            if isinstance(numeric_target,str):
+                numeric_target=[numeric_target]  
+            if isinstance(categoric_target,str):
+                categoric_target=[categoric_target]
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if ((cat_col!=num_col) and (cat_col in categoric_target) and (num_col in numeric_target))]
+        else:
+            combinations=[(cat_col,num_col) for num_col in numeric_columns for cat_col in categoric_columns if cat_col!=num_col]  
+
         res_dict={}
         for combo in combinations:
             p=self.one_way_kruskal_wallis(data[[*combo]])
@@ -389,13 +429,13 @@ class ANOVA:
         self.one_way_kruskal_wallis_df_overview=res
         return res
 
-    def cat_num_column_kruskal_wallis_relationships(self,data, alpha=0.05,keep_similar:bool=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True):
+    def cat_num_column_kruskal_wallis_relationships(self,data, alpha=0.05,keep_similar:bool=False, numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=True,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
         """
         takes alpha as a parameter 
         if keep_similar==False, observations with p_values<alpha are returned
         else p_values>=alpha are returned
         """
-        p_table=self.test_all_cat_num_kruskal_wallis(data,numeric_columns,categoric_columns,detect_pseudo_numeric)
+        p_table=self.test_all_cat_num_kruskal_wallis(data,numeric_columns,categoric_columns,detect_pseudo_numeric,categoric_target,numeric_target)
         if keep_similar==False:
             return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
         return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)

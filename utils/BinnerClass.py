@@ -12,8 +12,6 @@ except(ModuleNotFoundError):
     from utils.ANOVA import ANOVA
     
 
-### THIS COULD HAVE AN NTILE BINNER AND EVEN A NORMALIZER BINNER -calculate granularity of a perfecctly normal gaussian pdf and cdf  [such as to compare similar to a parreto, but as an area plot of proffit overlaying sales]
-### 
 
 import warnings
 
@@ -31,18 +29,14 @@ class Bin(ANOVA, Coefficient):
         bins=np.linspace(mn-1e-10,mx+1e-10,num_bins+1,endpoint=True)
         return np.digitize(x.copy(), bins, right=False)
     
-    #=============================================================================================================================================================
-    # a helper functions and an endpoint function that takes columns as input, and return data that explains at what number of bins in a numeric column influences significance
-    # of column relationships
-    #=============================================================================================================================================================
     #examine  relationships prior to binning
-    def pre_bin_relationships(self,df,cat_num_alpha:float=0.05,num_num_corr:float=0.6,numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=False): 
+    def pre_bin_relationships(self,df,cat_num_alpha:float=0.05,num_num_corr:float=0.6,numeric_columns:list|None=None,categoric_columns:list|None=None,detect_pseudo_numeric:bool=False,categoric_target:str|list|None=None,numeric_target:str|list|None=None): 
         """
         prepares data for Bin().pair_column_headers()
         #it calls kruskal_wallis or spearman coefficient to evaluate relationships
         """
-        cat_num_df=self.cat_num_column_kruskal_wallis_relationships(df, alpha=cat_num_alpha,keep_similar=False, numeric_columns=numeric_columns,categoric_columns=categoric_columns,detect_pseudo_numeric=detect_pseudo_numeric)
-        num_num_df=self.num_num_column_spearman_coefficient_relationships(df, corr=num_num_corr,keep_correlated=True,self_detect=True,numeric_columns=numeric_columns,detect_pseudo_numeric=detect_pseudo_numeric)
+        cat_num_df=self.cat_num_column_kruskal_wallis_relationships(df, alpha=cat_num_alpha,keep_similar=False, numeric_columns=numeric_columns,categoric_columns=categoric_columns,detect_pseudo_numeric=detect_pseudo_numeric,categoric_target=categoric_target,numeric_target=numeric_target)
+        num_num_df=self.num_num_column_spearman_coefficient_relationships(df, corr=num_num_corr,keep_correlated=True,self_detect=True,numeric_columns=numeric_columns,detect_pseudo_numeric=detect_pseudo_numeric,target=numeric_target)
         return num_num_df,cat_num_df
     
     def pair_column_headers(self,num_num_df,cat_num_df):
@@ -58,18 +52,18 @@ class Bin(ANOVA, Coefficient):
         return num_num_pairs, cat_num_pairs
 
 
-    def get_abs_coefficient_stat(self,data):
+    def get_abs_coefficient_stat(self,data,method='spearman'):
         """
         a function used in Bin().determine_min_number_of_bins()
         and passed to Bin().find_min_bins()
 
         """
         xcol,ycol=data.columns[0],data.columns[1]
-        return np.abs(data[ycol].corr(data[xcol]))
+        return np.abs(data[ycol].corr(data[xcol],method=method))
 
 
 
-    def find_min_bins(self, data, y_col, x_columns, test_func, threshold, direction_of_relationship):
+    def find_min_bins(self, data, y_col, x_columns, test_func, threshold, direction_of_relationship,method:str='spearman'):
         """
         direction_of_relationship='lower'|'greater' indicates area where bins are still related to other columns
         returns: 
@@ -92,7 +86,10 @@ class Bin(ANOVA, Coefficient):
             while low<=high:
                 mid=(low+high)//2
                 data['binned']=self.binner(data[y_col],mid)
-                stat = test_func(data[[col,'binned']])
+                if direction_of_relationship=='greater':
+                    stat = test_func(data[[col,'binned']],method=method)
+                else:
+                    stat = test_func(data[[col,'binned']])
                 
                 #print(f"bin: {mid}      stat: {stat}      threshold: {threshold}")
                 
@@ -123,7 +120,7 @@ class Bin(ANOVA, Coefficient):
 
 
 
-    def determine_min_number_of_bins(self,dataframe,num_num_pairs,cat_num_pairs,original_value_count_threashold,min_coeff=0.6,max_p_value=0.05):
+    def determine_min_number_of_bins(self,dataframe:pd.DataFrame, num_num_pairs:list|tuple, cat_num_pairs:list|tuple, original_value_count_threashold:int=5, min_coeff:float=0.6, max_p_value:float=0.05,coeff_method:str='spearman'):
         """
         takes output of Bin().pair_column_headers() as input
         shares alphas with Bin().pre_bin_relationships()
@@ -146,17 +143,16 @@ class Bin(ANOVA, Coefficient):
         y_relation_to_x_col_thresholds={}
         #iterate through target-numeric columns
         for col in cols_to_bin:
-            if data[col].nunique()<=original_value_count_threashold:
-                continue
             #extract the columns that will be x-features
             x_cat_columns=tuple(set(i[0] for i in cat_num_pairs if i[1]==col))
             x_num_columns=tuple(set(i[0] for i in num_num_pairs if i[1]==col))
 
             # make calls to func min bins and metrics
+            min_number_of_bins_numerical,min_number_of_bins_categorical = None, None
             if len(x_cat_columns)>0:
                 min_number_of_bins_categorical,column_binning_metrics_categorical=self.find_min_bins( data, col, x_cat_columns, self.one_way_kruskal_wallis, max_p_value, direction_of_relationship='lower')
             if len(x_num_columns)>0:
-                min_number_of_bins_numerical,column_binning_metrics_numerical=self.find_min_bins( data, col, x_num_columns, self.get_abs_coefficient_stat, min_coeff, direction_of_relationship='greater')
+                min_number_of_bins_numerical,column_binning_metrics_numerical=self.find_min_bins( data, col, x_num_columns, self.get_abs_coefficient_stat, min_coeff, direction_of_relationship='greater',method=coeff_method)
             if len(x_num_columns)<1 and len(x_cat_columns)<1:
                 warnings.warn(f"For {col}, There are no potential solutions at these thresholds.", UserWarning)
                 continue
@@ -172,7 +168,7 @@ class Bin(ANOVA, Coefficient):
                 elif min_number_of_bins_numerical is None:
                     minimum = min_number_of_bins_categorical
                 else:
-                    minimum = min(min_number_of_bins_numerical,min_number_of_bins_categorical)
+                    minimum = max(min_number_of_bins_numerical,min_number_of_bins_categorical)
                 minimums[col]=minimum
             elif len(x_num_columns)>0 and len(x_cat_columns)<1:
                 y_relation_to_x_col_thresholds[col]=column_binning_metrics_numerical
@@ -200,7 +196,7 @@ class Bin(ANOVA, Coefficient):
     #=============================================================================================================================================================
 
     
-    def relational_binner(self,df,max_cat_to_numeric_p=0.05,min_coeff=0.6,original_value_count_threashold:int=5,numeric_columns=None,categoric_columns=None):
+    def relational_binner(self,df,max_cat_to_numeric_p=0.05,min_coeff=0.6,original_value_count_threashold:int=5,numeric_columns=None,categoric_columns=None,categoric_target:str|list|None=None,numeric_target:str|list|None=None, coeff_method:str='spearman' ):
         """
         if numeric_columns or categorical_columns are left as None, they will be infered which can result in missing, or incorrect comparisons
         after calling this function, min bins ==> self.numeric_result_metrics[column]['min_bins']
@@ -220,11 +216,10 @@ class Bin(ANOVA, Coefficient):
                             'numeric column 2':..........}
 
         """
-        num_num_df,cat_num_df=self.pre_bin_relationships(df,cat_num_alpha=max_cat_to_numeric_p,num_num_corr=min_coeff,numeric_columns=numeric_columns,categoric_columns=categoric_columns)
+        num_num_df,cat_num_df=self.pre_bin_relationships(df,cat_num_alpha=max_cat_to_numeric_p,num_num_corr=min_coeff,numeric_columns=numeric_columns,categoric_columns=categoric_columns,categoric_target=categoric_target,numeric_target=numeric_target)
         num_num_pairs, cat_num_pairs=self.pair_column_headers(num_num_df,cat_num_df)
-        self.numeric_target_column_minimums, self.numeric_feature_col_thresholds = self.determine_min_number_of_bins(df,num_num_pairs,cat_num_pairs,original_value_count_threashold,min_coeff=min_coeff,max_p_value=max_cat_to_numeric_p)
+        self.numeric_target_column_minimums, self.numeric_feature_col_thresholds = self.determine_min_number_of_bins(df, num_num_pairs, cat_num_pairs, original_value_count_threashold, min_coeff=min_coeff, max_p_value=max_cat_to_numeric_p,coeff_method=coeff_method )
         return self.numeric_target_column_minimums
     #=============================================================================================================================================================
     #=============================================================================================================================================================
     
-    # a one to rest apprach via: self.find_min_bins(self, data, y_col, x_columns, test_func, threshold, direction_of_relationship)
