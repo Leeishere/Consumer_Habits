@@ -2,3 +2,5 @@
 .venv/
 Consumer_Habits.ipynb
 GitIgnoredStuff/
+/coffee
+/utils/__pycache__

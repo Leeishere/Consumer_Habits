@@ -327,10 +327,12 @@ class MuEstimator:
         return pd.DataFrame({cat_var:counts.index,'proportion':proportions,'num_observations':num_observations,'successes':counts.values})
 
 
-    def get_bivariable_proportions(self,dataframe, partition_variable:list, category_variable:str):
+    def get_bivariable_proportions(self,dataframe, partition_variable:str|list, category_variable:str):
         """
         takes a dataframe, a partition columns, and a target column as input. returns a new dataframe with proportions
         """
+        if isinstance(partition_variable,str):
+            partition_variable=[partition_variable]
         data=dataframe.copy()
         data=data.groupby(partition_variable+[category_variable],as_index=False,observed=True).size().rename(columns={'size':'successes'})
         sizes=data.groupby(category_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
@@ -344,14 +346,14 @@ class MuEstimator:
     # Create grouped mu estimate range dataframes
 
 
-    def get_proportion_estimate_df(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:list=None):
+    def get_proportion_estimate_df(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:str|list=None):
         """
         takes a dataframe, target column, confidence interval[default 0.95], optional partition column(s)[default None], and sort[default None] as input.
         returns a new dataframe with <partition column>, target column, num_observations column, upper column, and lower column.
         where upper and lower are the mu estimate intervals
         """
-        if type(partition_by)==str:
-            partition_cols=[partition_by]
+        if isinstance(partition_by,str):
+            partition_by=[partition_by]
         if partition_by is None or partition_by == []:
             estimate_df=self.get_single_variable_proportions(dataframe[target_col])
         else:
@@ -388,7 +390,7 @@ class MuEstimator:
         return estimate_df
 
     # get plot data
-    def get_floating_mu_hbar_plot_data(self,plot_df_:pd.DataFrame,target_col:str,partition_cols:list):
+    def get_floating_mu_hbar_plot_data(self,plot_df_:pd.DataFrame,target_col:str,partition_cols:str|list|None):
         """
         return lefts,mu,median,widths,Y_ticks,X_label,intersects,target_col
         where lefts is lower bounds, mu is mu, media is median or none in case of proportions, widths is MOE*2, 
@@ -405,16 +407,16 @@ class MuEstimator:
         partitions=False if partition_cols is None or partition_cols==[] else True
         if partitions==True:
             Y_ticks="] -> "+plot_df[target_col].astype(str)
-        else: Y_ticks=plot_df[target_col].astype(str)
-        first=True  # to help with string format
-        for col in partition_cols: 
-            if first==False:
-                Y_ticks="'"+plot_df[col].astype(str)+"', "+Y_ticks.astype(str)
-            else:
-                Y_ticks="'"+plot_df[col].astype(str)+"'"+Y_ticks.astype(str)
-                first=False
-        if partitions==True:
-                Y_ticks="["+Y_ticks.astype(str)
+            first=True  # to help with string format
+            for col in partition_cols: 
+                if first==False:
+                    Y_ticks="'"+plot_df[col].astype(str)+"', "+Y_ticks.astype(str)
+                else:
+                    Y_ticks="'"+plot_df[col].astype(str)+"'"+Y_ticks.astype(str)
+                    first=False
+            if partitions==True:
+                    Y_ticks="["+Y_ticks.astype(str)
+        else: Y_ticks=plot_df[target_col].astype(str)        
         Y_ticks=Y_ticks.values
         #X_label    
         X_label=target_col+'\nPartitioned By\n'+str(partition_cols[::-1]) if partitions==True else target_col.title()

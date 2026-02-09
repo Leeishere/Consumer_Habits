@@ -14,7 +14,6 @@ import gc
 
 class Chi2:
     def __init__(self):
-        self.independence_overview=None
         self.good_of_fit=None
 
     def column_makeup(self,data,x1,x2):
@@ -62,11 +61,18 @@ class Chi2:
         return frequencies_table
         
     ## consider adding a flag if any cell has an expected value <
-    def chi_squared_independence(self,data,x_1,x_2,is_cudf:bool=False):     
+    def chi_squared_independence(self,data,x_1,x_2):     
         """
         test of independence
         """
-        if is_cudf==True:
+        try:
+            observed = self.frequencies_table(data, x_1, x_2, kind='frequency')
+            expected = ( observed.sum(axis=1).to_numpy().reshape(-1,1)@observed.sum(axis=0).to_numpy().reshape(1,-1) ) / observed.sum().sum()
+            chi_stat = (( (observed-expected)**2)/expected).sum().sum()
+            dof      = (observed.shape[0]-1)*(observed.shape[1]-1)
+            p_value  = scipy.special.chdtrc(dof,chi_stat)
+            return p_value
+        except:
             obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
             sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
             sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
@@ -78,63 +84,47 @@ class Chi2:
             chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
             p_value  = scipy.special.chdtrc(dof,chi_stat)
             return p_value
-        else:
-            try:
-                observed = self.frequencies_table(data, x_1, x_2, kind='frequency')
-                expected = ( observed.sum(axis=1).to_numpy().reshape(-1,1)@observed.sum(axis=0).to_numpy().reshape(1,-1) ) / observed.sum().sum()
-                chi_stat = (( (observed-expected)**2)/expected).sum().sum()
-                dof      = (observed.shape[0]-1)*(observed.shape[1]-1)
-                p_value  = scipy.special.chdtrc(dof,chi_stat)
-                return p_value
-            except:
-                obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
-                sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
-                sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
-                dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
-                obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
-                obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
-                grand_total=obs['observed'].sum().sum()
-                obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
-                chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
-                p_value  = scipy.special.chdtrc(dof,chi_stat)
-                return p_value
 
 
-    def test_all_cat_columns_chi_independence(self,data,columns:list|None=None,additional:bool=True,target:list|None=None,is_cudf:bool=False):
+    def test_all_cat_columns_chi_independence(self,data,columns:str|list|None=None,target:str|list|None=None):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
-        if columns != None, additional==True will add columns to the default, else additional=False will only consider columns included in the args
+        additional can be None or numeric column(s) to analyze
         if target is not None it should be a list. Only combinations that include target will be returned
         """
         if columns is None:
             columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
-        elif additional is True and columns is not None: 
-            columns=list(set(list(data.select_dtypes('object').columns) + list(data.select_dtypes('category').columns) + list(columns)))
+        elif isinstance(columns,str):
+            columns=[columns]
         if target==None:
             combinations=list(itertools.combinations(columns,2))
         else: 
+            if isinstance(target,str):
+                target=[target]
+            columns = list( set( columns+target ) )
             combinations = [(targ, col) for targ in target for col in columns if targ != col]
         res_dict={}
         for combo in combinations:
-            p=self.chi_squared_independence(data,combo[0],combo[1],is_cudf=is_cudf)
+            p=self.chi_squared_independence(data,combo[0],combo[1])
             res_dict[(combo[0],combo[1])]=[p]
+        if len(res_dict)<1:
+            return pd.DataFrame(columns=['category_a','category_b','P-value'])
         res = pd.DataFrame(res_dict).T.reset_index(drop=False)
         res.columns=['category_a','category_b','P-value']
-        self.independence_overview=res
         return res
 
-
-    def categorical_column_relationships(self,data, alpha=0.05, keep_similar:bool=False, columns=None, additional=True,target:list|None=None,is_cudf:bool=False):
+    # a function that calls chi2 independence to examine and compare dataset columns
+    def categorical_column_comparison(self,data, alpha=0.05, keep_above_p:None|bool=False, categoric_columns=None, categoric_target:list|None=None):
         """
-        where additional true and columns can overide default self detect
-        such as:
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
-        if columns != None, additional==True will add columns to the default, else additional=False will only consider columns included in the args
         """
-        p_table=self.test_all_cat_columns_chi_independence(data,columns,additional,target,is_cudf)
-        if keep_similar==True:
+        p_table=self.test_all_cat_columns_chi_independence(data,categoric_columns,categoric_target)
+        if keep_above_p==True:
             return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
-        return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
+        elif keep_above_p==False:
+            return p_table.loc[p_table['P-value']<alpha].reset_index(drop=True)
+        else:
+            return p_table
 
 
     #test for uniformness  
