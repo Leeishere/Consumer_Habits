@@ -4,6 +4,7 @@ import scipy
 from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
+import warnings
 
 try:
     import streamlit as st
@@ -273,14 +274,14 @@ class MuEstimator:
         MOE = np.empty_like(statistics,dtype=float)
         lower,upper=np.empty_like(proportions_arr,dtype=float),np.empty_like(proportions_arr,dtype=float)
         #retrieve z stat        
-        z_statistic=self.one_tailed_z_score_lookup(confidence_level)
+        z_statistic=self.two_tailed_z_score_lookup(confidence_level)
         #steps:
         #determine t scores for low observation datapoints
         #a scalar z
         #make call to get standard errors
         #make call to get MOE
         #calculate bounds
-        statistics[obs_under_30]=self.one_tailed_t_score_lookup(num_observations_arr[obs_under_30]-1,confidence_level)
+        statistics[obs_under_30]=self.two_tailed_t_score_lookup(num_observations_arr[obs_under_30]-1,confidence_level)
         statistics[obs_equal_to_or_over_30]=z_statistic
         standard_errors[~isnull_indexes] = self.se_proportion(proportions_arr[~isnull_indexes], num_observations_arr[~isnull_indexes]) 
         MOE[~isnull_indexes] = self.margin_of_error(statistics[~isnull_indexes], standard_errors[~isnull_indexes])
@@ -335,7 +336,7 @@ class MuEstimator:
             partition_variable=[partition_variable]
         data=dataframe.copy()
         data=data.groupby(partition_variable+[category_variable],as_index=False,observed=True).size().rename(columns={'size':'successes'})
-        sizes=data.groupby(category_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
+        sizes=data.groupby(partition_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
         data = data.merge(sizes,how='left',right_on=category_variable,left_on=category_variable)
         data['proportion'] = self.proportion_successes(data['num_observations'],data['successes'])
         data=data.reset_index(drop=False)
