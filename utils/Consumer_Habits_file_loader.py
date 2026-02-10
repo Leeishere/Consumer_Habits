@@ -3,17 +3,17 @@ from utils.BinnerClass import Bin
 import pathlib
 import pandas as pd
 bin=Bin()
-bin2=Bin()
 
 
 def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
     """
     """
-    global bin, bin2
+    global bin
 
     behavior=pathlib.Path(filepath)
     df=pd.read_csv(behavior)
-
+    df['Male']=df['Gender'].replace({'Male':1,'Female':0})
+    df.drop(columns=['Customer ID','Gender'],inplace=True)
     mymap={'Yes':1,'No':0}
     for col in ['Subscription Status', 'Discount Applied','Promo Code Used']:
         df[col]=df[col].map(mymap).astype('object')
@@ -29,14 +29,21 @@ def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
     df['Total Days of Patronage']=(df['Frequency of Purchases'].map(freq_factor)*df['Previous Purchases']).astype(int)
 
     #bin numeric columns
-    bin.relational_binner(df,max_cat_to_numeric_p=0.05,min_coeff=0.6,original_value_count_threashold=5,numeric_columns=None,categoric_columns=None)
+    bin.relational_binner(df,
+                    numnum_meth_alpha_above=('welch',0.05,False),    
+                    catnum_meth_alpha_above=('kruskal',0.05,False),   
+                    original_value_count_threashold=5,  
+                    numeric_columns=None,     
+                    categoric_columns=None,    
+                    numeric_target=None,      
+                    categoric_target=None) 
     for k, v in bin.numeric_target_column_minimums.items():
-        df[f"{k}_Binned"]=bin.binner(df[k],v)
-        df[f"{k}_Binned"]=df[f"{k}_Binned"].astype('object')
-    bin2.relational_binner(df,max_cat_to_numeric_p=0.05,min_coeff=0.6,original_value_count_threashold=5,numeric_columns=['Age'],categoric_columns=None)
-    for k, v in bin2.numeric_target_column_minimums.items():
-        df[f"{k}_Binned"]=bin2.binner(df[k],v)
-        df[f"{k}_Binned"]=df[f"{k}_Binned"].astype('object')
+        v=max(v,5)
+        df[f"{k}_Binned"]=bin.binner(df[k],v,rescale=True)
+        df[f"{k}_Binned"]=df[f"{k}_Binned"].astype(float).round(2)
+        df[f"{k}_Ordinalized"]=bin.binner(df[k],v,rescale=False)
+        df[f"{k}_Ordinalized"]=df[f"{k}_Ordinalized"].astype(int)
+    
 
     
     return df
