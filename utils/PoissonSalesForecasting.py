@@ -30,7 +30,6 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         self.season_col_header_data_is_partitioned_by='Season'   # a column header in Consumer_Habbits.csv: 'Winter','Summer','Sprint','Fall'
         self.days_of_patronage_col_header='Days of Patronage'   # returned by add_day_column(): total customer lifetime so far
         self.days_between_purchases_col_header='Days Between Purchases'   # returned by add_days_between_purchase_column()
-        self.individual_sale_purchase_amount='Purchase Amount (USD)'    #used to calculate the average single item purchase price for each season
         self.seasons=None    #seasons=predict_total_sales_per_season(self,df)
         #get period for periods <= season size
         self.period_details = {'w':None,'m':None,'q':None} #[partitioned_seasons, period_to_aggrigate, period_size_in_days, periods_per_season]+[period_title,total_periods,zero_to_max,starts,periods]
@@ -144,10 +143,10 @@ class PoissonSalesForecasting(ProbabilisticModeling):
             partition_column=self.season_col_header_data_is_partitioned_by
         else: 
             self.season_col_header_data_is_partitioned_by=partition_column
-        winter=self.simulate_sales_by_season(df,occurrence_multiplier,'Winter',364/4).sum() 
-        spring=self.simulate_sales_by_season(df,occurrence_multiplier,'Spring',364/4).sum() 
-        summer=self.simulate_sales_by_season(df,occurrence_multiplier,'Summer',364/4).sum() 
-        fall=self.simulate_sales_by_season(df,occurrence_multiplier,'Fall',364/4).sum() 
+        winter=self.simulate_sales_by_season(df,occurrence_multiplier,'Winter',365/4).sum() 
+        spring=self.simulate_sales_by_season(df,occurrence_multiplier,'Spring',365/4).sum() 
+        summer=self.simulate_sales_by_season(df,occurrence_multiplier,'Summer',365/4).sum() 
+        fall=self.simulate_sales_by_season(df,occurrence_multiplier,'Fall',365/4).sum() 
         self.seasons = [winter,spring,summer,fall]
 
 #------------------------------------------------------------------------------------------------------------------------------------

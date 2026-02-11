@@ -328,16 +328,21 @@ class MuEstimator:
         return pd.DataFrame({cat_var:counts.index,'proportion':proportions,'num_observations':num_observations,'successes':counts.values})
 
 
-    def get_bivariable_proportions(self,dataframe, partition_variable:str|list, category_variable:str):
+    def get_bivariable_proportions(self,dataframe, partition_variable:str|list, category_variable:str, proportion_within_partition:bool=True):
         """
         takes a dataframe, a partition columns, and a target column as input. returns a new dataframe with proportions
+        proportion_within_partition:bool=True/False determins the denominator is sum within partition or sum through category
         """
         if isinstance(partition_variable,str):
             partition_variable=[partition_variable]
         data=dataframe.copy()
         data=data.groupby(partition_variable+[category_variable],as_index=False,observed=True).size().rename(columns={'size':'successes'})
-        sizes=data.groupby(partition_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
-        data = data.merge(sizes,how='left',right_on=category_variable,left_on=category_variable)
+        if proportion_within_partition==True:
+            sizes=data.groupby(partition_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
+            data = data.merge(sizes,how='left',right_on=partition_variable,left_on=partition_variable)
+        else:
+            sizes=data.groupby(category_variable,as_index=False,observed=True)['successes'].sum().rename(columns={'successes':'num_observations'})
+            data = data.merge(sizes,how='left',right_on=category_variable,left_on=category_variable)
         data['proportion'] = self.proportion_successes(data['num_observations'],data['successes'])
         data=data.reset_index(drop=False)
         return data[partition_variable+[category_variable,'proportion','num_observations','successes']]
@@ -347,7 +352,7 @@ class MuEstimator:
     # Create grouped mu estimate range dataframes
 
 
-    def get_proportion_estimate_df(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:str|list=None):
+    def get_proportion_estimate_df(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:str|list=None, proportion_within_partition:bool=True):
         """
         takes a dataframe, target column, confidence interval[default 0.95], optional partition column(s)[default None], and sort[default None] as input.
         returns a new dataframe with <partition column>, target column, num_observations column, upper column, and lower column.
@@ -358,7 +363,7 @@ class MuEstimator:
         if partition_by is None or partition_by == []:
             estimate_df=self.get_single_variable_proportions(dataframe[target_col])
         else:
-            estimate_df=self.get_bivariable_proportions(dataframe, partition_by, target_col)
+            estimate_df=self.get_bivariable_proportions(dataframe, partition_by, target_col, proportion_within_partition)
         if confidence_level>0.999999:
             raise ValueError('Confidence Level Out of Bounds\nexceeds-->0.999999')
         estimate=self.proportion_estimator(estimate_df['proportion'],estimate_df['num_observations'],confidence_level)
@@ -576,11 +581,11 @@ class MuEstimator:
 
 
 
-    def get_floating_proportion_hbar(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:list=[],plot_title=None,streamlit=False):
+    def get_floating_proportion_hbar(self,dataframe:pd.DataFrame,target_col:str,confidence_level:float=0.95,partition_by:list=[],plot_title=None,streamlit=False, proportion_within_partition:bool=True):
         """
         
         """
-        mu_data = self.get_proportion_estimate_df(dataframe,target_col,confidence_level,partition_by)
+        mu_data = self.get_proportion_estimate_df(dataframe,target_col,confidence_level,partition_by, proportion_within_partition)
         plot_data = self.get_floating_mu_hbar_plot_data(mu_data,target_col,partition_by)
         #generate plot
         self.plot_floating_mu_hbar(*plot_data,confidence_level,plot_title=plot_title,streamlit=streamlit)

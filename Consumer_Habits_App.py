@@ -298,7 +298,7 @@ if page == "Binning Tool":
         else:
             mu_column, partition_column =  st.session_state.curr_but_original_unbinned+" -> Binned", None
             muest2=MuEstimator()
-            muest2.get_floating_proportion_hbar(st.session_state.data,mu_column,0.95,partition_column,plot_title=None,streamlit=True)
+            muest2.get_floating_proportion_hbar(st.session_state.data,mu_column,0.95,partition_column,plot_title=None,streamlit=True, proportion_within_partition=True)
 
             rr_mu_and_relation_plot=True
 
