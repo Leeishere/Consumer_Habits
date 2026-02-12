@@ -18,9 +18,9 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
 
     def column_comparison(self,
                         df,
-                        numnum_meth_alpha_above:tuple|None=('welch',0.05,False),
-                        catnum_meth_alpha_above:tuple|None=('kruskal',0.05,False),
-                        catcat_meth_alpha_above:tuple|None=('chi2',0.05,False),
+                        numnum_meth_alpha_above:tuple|list|None=('welch',0.05,False),
+                        catnum_meth_alpha_above:tuple|list|None=('kruskal',0.05,False),
+                        catcat_meth_alpha_above:tuple|list|None=('chi2',0.05,False),
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
                         numeric_target:str|list|None=None,

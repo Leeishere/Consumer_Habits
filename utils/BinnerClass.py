@@ -266,13 +266,23 @@ class Bin(CompareColumns):
 
             # make calls to func min bins and metrics
             min_number_of_bins_numerical,min_number_of_bins_categorical = None, None
-            if (len(x_cat_columns)>0) and (catnum_meth_alpha_above is not None):                
+            # boolean varaibles: 
+            is_cat_columns=(len(x_cat_columns)>0)
+            not_cat_columns=(len(x_cat_columns)<1)
+            is_catnum_metrics=(catnum_meth_alpha_above is not None)
+            not_catnum_metrics=(catnum_meth_alpha_above is None)
+            is_num_columns=(len(x_num_columns)>0)
+            not_num_columns=(len(x_num_columns)<1)
+            is_numnum_metrics=(numnum_meth_alpha_above is not None)
+            not_numnum_metrics=(numnum_meth_alpha_above is None)
+
+            if is_cat_columns and is_catnum_metrics:                
                 catnum_method = catnum_meth_alpha_above[0] 
                 if catnum_method=='kruskal':
                     min_number_of_bins_categorical,column_binning_metrics_categorical=self.find_min_bins( data, col, x_cat_columns, self.one_way_kruskal_wallis, catnum_meth_alpha_above[1], direction_of_relationship=catnum_direction_of_relationship)
                 elif catnum_method=='anova':
                     min_number_of_bins_categorical,column_binning_metrics_categorical=self.find_min_bins( data, col, x_cat_columns, self.one_way_ANOVA, catnum_meth_alpha_above[1], direction_of_relationship=catnum_direction_of_relationship)  
-            if (len(x_num_columns)>0) and (numnum_meth_alpha_above is not None):
+            if is_num_columns and is_numnum_metrics:
                 numnum_method = numnum_meth_alpha_above[0]
                 if numnum_method in ('pearson','spearman','kendall'):
                     min_number_of_bins_numerical,column_binning_metrics_numerical=self.find_min_bins( data, col, x_num_columns, self.get_abs_coefficient_stat, numnum_meth_alpha_above[1], direction_of_relationship=numnum_direction_of_relationship,method=numnum_method)
@@ -280,11 +290,11 @@ class Bin(CompareColumns):
                     min_number_of_bins_numerical,column_binning_metrics_numerical=self.find_min_bins( data, col, x_num_columns, self.welchs_t_test, numnum_meth_alpha_above[1], direction_of_relationship=numnum_direction_of_relationship,method=numnum_method)
                 elif numnum_method=='student':
                     min_number_of_bins_numerical,column_binning_metrics_numerical=self.find_min_bins( data, col, x_num_columns, self.students_t_test, numnum_meth_alpha_above[1], direction_of_relationship=numnum_direction_of_relationship,method=numnum_method)            
-            if ( (len(x_num_columns)<1) or (numnum_meth_alpha_above is None) ) and ( (len(x_cat_columns)<1) or (catnum_meth_alpha_above is None) ):
+            if ( not_num_columns or not_numnum_metrics ) and ( not_cat_columns or not_catnum_metrics ):
                 warnings.warn(f"For {col}, There are no potential solutions at these thresholds.", UserWarning)
                 continue
             #update threshold metrics
-            elif ((len(x_num_columns)>0) and (numnum_meth_alpha_above is not None)) and ((len(x_cat_columns)>0) and (catnum_meth_alpha_above is not None)):
+            elif (is_num_columns and is_numnum_metrics) and (is_cat_columns and is_catnum_metrics):
                 column_metrics=column_binning_metrics_categorical | column_binning_metrics_numerical
                 y_relation_to_x_col_thresholds[col]=column_metrics
                 #update the minimum bin that retains   ALL tested relationships
@@ -297,7 +307,7 @@ class Bin(CompareColumns):
                 else:
                     minimum = max(min_number_of_bins_numerical,min_number_of_bins_categorical)
                 minimums[col]=minimum
-            elif ( (len(x_num_columns)>0) and (numnum_meth_alpha_above is not None) ) and ( (len(x_cat_columns)<1) or (catnum_meth_alpha_above is None) ):
+            elif ( is_num_columns and is_numnum_metrics ) and ( not_cat_columns or not_catnum_metrics ):
                 y_relation_to_x_col_thresholds[col]=column_binning_metrics_numerical
                 #update the minimum bin that retains   ALL tested relationships
                 if min_number_of_bins_numerical is None:
@@ -305,7 +315,7 @@ class Bin(CompareColumns):
                 else:
                     minimum = min_number_of_bins_numerical
                 minimums[col]=minimum
-            elif ( (len(x_num_columns)<1) or (numnum_meth_alpha_above is None) ) and ((len(x_cat_columns)>0) and (catnum_meth_alpha_above is not None)):
+            elif ( not_num_columns or not_numnum_metrics ) and (is_cat_columns and is_catnum_metrics):
                 y_relation_to_x_col_thresholds[col]=column_binning_metrics_categorical
                 #update the minimum bin that retains   ALL tested relationships
                 if min_number_of_bins_categorical is None:

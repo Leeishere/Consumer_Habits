@@ -12,7 +12,7 @@ def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
 
     behavior=pathlib.Path(filepath)
     df=pd.read_csv(behavior)
-    df['Male']=df['Gender'].replace({'Male':1,'Female':0})
+    df['Male']=df['Gender'].replace({'Male':1,'Female':0}).astype('object')
     df.drop(columns=['Customer ID','Gender'],inplace=True)
     mymap={'Yes':1,'No':0}
     for col in ['Subscription Status', 'Discount Applied','Promo Code Used']:
@@ -42,7 +42,7 @@ def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
         df[f"{k}_Binned"]=bin.binner(df[k],v,rescale=True)
         df[f"{k}_Binned"]=df[f"{k}_Binned"].astype(float).round(2)
         df[f"{k}_Ordinalized"]=bin.binner(df[k],v,rescale=False)
-        df[f"{k}_Ordinalized"]=df[f"{k}_Ordinalized"].astype(int)
+        df[f"{k}_Ordinalized"]=df[f"{k}_Ordinalized"].astype('object')
     
 
     
