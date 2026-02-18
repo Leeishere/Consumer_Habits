@@ -1,0 +1,9 @@
+/utils/Notes/
+.venv/
+Consumer_Habits.ipynb
+GitIgnoredStuff/
+/coffee
+/utils/__pycache__
+/SalesMinds
+/__pycache__
+/TimeTests.ipynb
