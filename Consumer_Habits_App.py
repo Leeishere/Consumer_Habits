@@ -375,9 +375,9 @@ elif page == "Insights Gained w/ Binning Tool":
 
 
     seven_levels_           = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+    ship_                   = st.columns([1],gap='large',vertical_alignment='top',border=True)
     Purchase_Amount_        = st.columns([1],gap='large',vertical_alignment='top',border=True) 
     color_                  =  st.columns([1],gap='large',vertical_alignment='top',border=True)
-    ship_                   = st.columns([1],gap='large',vertical_alignment='top',border=True)
     sixteen_levels_         = st.columns([1],gap='large',vertical_alignment='top',border=True)
     size_                   = st.columns([1],gap='large',vertical_alignment='top',border=True) 
 
