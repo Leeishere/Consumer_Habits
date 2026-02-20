@@ -81,7 +81,7 @@ st.set_page_config(
     page_icon="🛠️",
     layout="wide")
 
-page = st.sidebar.radio("Navigate", ["Binning Tool", "Seasonal Forecasting Tool"])
+page = st.sidebar.radio("Navigate", ["Binning Tool", "Insights Gained w/ Binning Tool","Seasonal Forecasting Tool"])
 
 #plt.style.use('seaborn-v0_8-colorblind')
 pd.set_option('display.max_rows', 100)
@@ -363,3 +363,73 @@ elif page == "Seasonal Forecasting Tool":
                 st.markdown('')
             elif period_button is not None:
                 floating_cdf_plot(df=st.session_state.data,period=period_button)# with button as input
+
+elif page == "Insights Gained w/ Binning Tool":
+
+
+    Title_text = "Probability of Each Review Level Given a Categorical Variable."
+    st.markdown('...',text_alignment='center')
+    st.header(Title_text,text_alignment='center')
+    st.markdown("Variables That Reject the Null Hypothesis Under the Kruskal-Wallis Test for Differneces Across Groups.",text_alignment='center')
+    st.markdown('...',text_alignment='center')
+
+
+    seven_levels_           = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+    Purchase_Amount_        = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+    color_                  =  st.columns([1],gap='large',vertical_alignment='top',border=True)
+    ship_                   = st.columns([1],gap='large',vertical_alignment='top',border=True)
+    sixteen_levels_         = st.columns([1],gap='large',vertical_alignment='top',border=True)
+    size_                   = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+
+    with seven_levels_[0]:
+        st.subheader("Review Ratings Binned Into 7 Levels", divider='grey', anchor=False, text_alignment='center')
+        seven_levels_path = pathlib.Path("utils/imgs_Consumer_Habits_App/RevRat7Levels.png")
+        st.image(seven_levels_path, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        
+    with Purchase_Amount_[0]:
+        st.subheader("Purchase Amount Binned and Ordinalized", divider='grey', anchor=False, text_alignment='center')
+        Overview_Purch_Ords = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Purch_Ords.png")
+        st.image(Overview_Purch_Ords, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        st.markdown("Purchase Amount shows spikes in levels 1-3 for all purchase categories, but only spikes in high reviews for amounts 1, 3, and 4.")
+        P_L_given_Purch_Ord = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Purch_Ord.png")
+        st.image(P_L_given_Purch_Ord, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        #st.markdown("Explore Low-Level Details.")    
+        #Paretos_Purch_Ord = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Purch_Ord.png")
+        #st.image(Paretos_Purch_Ord, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        
+    with color_[0]:
+        st.subheader("Color", divider='grey', anchor=False, text_alignment='center')
+        Overview_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Color.png")
+        st.image(Overview_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        P_L_given_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Color.png")
+        st.markdown("Many colors have high bias review levels.")
+        st.image(P_L_given_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        #Paretos_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Color.png")
+        #st.image(Paretos_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+    
+    with ship_[0]:
+        st.subheader("Shipping Type", divider='grey', anchor=False, text_alignment='center')       
+        Overview_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Ship.png")
+        st.image(Overview_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)   
+        P_L_given_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Ship.png")
+        st.markdown("Standard shipping spikes for high reviews, but most other Shipping Types spike for low reviews.")
+        st.image(P_L_given_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        #Paretos_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Ship.png")
+        #st.image(Paretos_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+    
+    with sixteen_levels_[0]:
+        st.subheader("Review Ratings Binned Into 16 Levels", divider='grey', anchor=False, text_alignment='center')
+        RevRat16Levels = pathlib.Path("utils/imgs_Consumer_Habits_App/RevRat16Levels.png")
+        st.image(RevRat16Levels, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+    
+    with size_[0]:
+        st.subheader("Size", divider='grey', anchor=False, text_alignment='center')
+        Overview_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Size.png")
+        st.image(Overview_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        P_L_given_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Size.png")
+        st.markdown("There is a slight tendency for L and M sizes to spike in low review levels and XL to spike in high. Spikes in S are not especially biased.")
+        st.image(P_L_given_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        #Paretos_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Size.png")
+        #st.image(Paretos_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+    
+    
