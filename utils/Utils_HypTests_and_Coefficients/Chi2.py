@@ -13,8 +13,6 @@ import warnings
 import gc
 
 class Chi2:
-    def __init__(self):
-        self.good_of_fit=None
 
     def column_makeup(self,data,x1,x2):
         """
@@ -151,25 +149,21 @@ class Chi2:
             dof      = x.nunique()-1
             return scipy.special.chdtrc(dof, chi_stat)
 
-
-    def test_all_cat_columns_chi_good_of_fit(self,data,columns=None,additional=True):
+    def test_all_cat_columns_chi_good_of_fit(self,data,columns:str|list|None=None,expected_probs:list|None=None):
         """
-        if columns == None, it defaults to detect 'object' and 'category' dtypes and won't see 'int', or 'datetime'
-        if columns != None and additional==True all, 'object' and 'category' columns will still be included along with the columns
-        if columns != None and additional==False, only columns included in the args will be included
+        if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
+        returns a df of [col, p-value]
         """
         if columns is None:
             columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
-        elif additional is True and columns is not None: 
-            columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)+list(columns)))
-
+        elif isinstance(columns,str):
+            columns=[columns]
         res_dict={}
         for col in columns:
-            p=self.chi_squared_goodness_of_fit(data[col])
+            p=self.chi_squared_goodness_of_fit(data[col],expected_probs=expected_probs)
             res_dict[col]=[p]
         res = pd.DataFrame(res_dict).T.reset_index(drop=False)
         res.columns=['category','P-value']
-        self.good_of_fit=res
         return res
 
         

@@ -28,7 +28,8 @@ def plot_cat_to_review_levels(data,
                               detail_plots:bool,
                               n_axis_columns,
                               use_log:bool,
-                              dist_overview:bool):
+                              dist_overview:bool,
+                              detail_plot_probabilities:bool):
     """
     where category column is a categorical columns such as 'Item Purchased'
     review_colunm is a review rating level such as Review Rating level 1, 2, or 3
@@ -63,10 +64,10 @@ def plot_cat_to_review_levels(data,
         # P(category | NOT review)
         grouped['P_category_given_not_review'] = (category_totals - grouped['Count']) / (total_n - review_totals) # where grouped['Count'] includes the rev meant to excude here
         grouped["P(Rev|Cat)"] = bayes_theorem(grouped['P_review'], grouped["P(Cat|Rev)"], grouped['P_category_given_not_review'],use_log=use_log)
-        grouped.drop(columns=['P_category_given_not_review','Count','P_review'],inplace=True)
+        grouped.drop(columns=['P_category_given_not_review','P_review'],inplace=True)
         del total_n, review_totals, category_totals
         plt.figure(figsize=(20,6))
-        plt.title('Probability of Review Level Given Category')
+        plt.title(f'Probability of Review Level Given {category_column}')
         sns.barplot(data=grouped, x=category_column, y="P(Rev|Cat)", 
                     hue=review_column, hue_order=sorted(list(data[review_column].unique())), legend='auto')
     
@@ -75,12 +76,12 @@ def plot_cat_to_review_levels(data,
         cols=n_axis_columns
         rows=int(np.ceil(num_axises/cols))
         fig = plt.figure(figsize=(20,(rows*3)+3))
-        if probabilities==True:
+        if detail_plot_probabilities==True:
             plt.suptitle(f"Probabilities of Review Level given Category and Category given Review Level\nWhere 1 is Lowest Review Rating Level\nDistributed Across {category_column}\n\n",fontsize=20)
         else:
             plt.suptitle(f"Pareto Plots Per Level of Review Rating\nWhere 1 is Lowest Rating Level and {data[review_column].max()} is Highest\nDistributed Across {category_column}\n\n",fontsize=20)
         for level in range(1,num_axises+1):
-            if probabilities==True:
+            if detail_plot_probabilities==True:
                 plot_data=grouped.loc[grouped[review_column]==int(level)].sort_values(by="P(Cat|Rev)",ascending=False)
                 plot_data = plot_data.melt( id_vars=[category_column], value_vars=[ "P(Rev|Cat)", "P(Cat|Rev)" ],var_name='Probability_Type', value_name='Probability' )
                 ax = plt.subplot(rows,cols,level)
@@ -103,7 +104,7 @@ def plot_cat_to_review_levels(data,
                 ax.set_ylabel('Count')
                 ax.set_xlabel(f"Counts Per Category in Level {level}")
                 ax2 = ax.twinx()
-                ax2.plot(x, plot_data['Percent'], marker='o')
+                ax2.plot(x, plot_data['Percent'], marker='o',color='orange',linewidth=2.5)
                 ax2.set_ylim(0, 100)
                 ax2.set_ylabel('Cumulative Percent')
 
