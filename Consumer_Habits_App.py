@@ -48,22 +48,29 @@ if 'data' not in st.session_state:
     st.session_state.data = load_data()
 
 # get headers
-if 'cat_columns' not in st.session_state:
-    st.session_state.cat_columns = list(st.session_state.data.select_dtypes(include=['category', 'object']).columns)
 if 'unbinned_columns' not in st.session_state:
-    st.session_state.unbinned_columns = list(st.session_state.data.select_dtypes([int,float]).columns)
+    st.session_state.unbinned_columns = None
 if 'binned_columns' not in st.session_state:
     st.session_state.binned_columns = []
 if 'binned_exists_as' not in st.session_state:
     st.session_state.binned_exists_as=None
-if 'curr_but_original_unbinned' not in st.session_state:
-    st.session_state.curr_but_original_unbinned = 'Review Rating'
-if 'min_num_bins_to_implement' not in st.session_state:
-    st.session_state.min_num_bins_to_implement = 5
+if 'curr_original_unbinned' not in st.session_state:
+    st.session_state.curr_original_unbinned = 'Review Rating'
 if "numnum_metrics" not in st.session_state:
-    st.session_state.numnum_metrics = ['welch',0.05,False]
+    st.session_state.numnum_metrics = ['pearson',0.6,True]
 if "catnum_metrics" not in st.session_state:
     st.session_state.catnum_metrics = ['kruskal',0.05,False]
+if "abs_min_bins" not in st.session_state:
+    st.session_state.abs_min_bins = None
+if "col_by_col_min_bins" not in st.session_state:
+    st.session_state.col_by_col_min_bins = None
+if "custom_min_bins" not in st.session_state:
+    st.session_state.custom_min_bins = {}
+if "choose_columns" not in st.session_state:
+    st.session_state.choose_columns = False
+if "binning_processed" not in st.session_state:
+    st.session_state.binning_processed = False
+
 
 
 #=================================================================================================================================================================
@@ -71,7 +78,7 @@ if "catnum_metrics" not in st.session_state:
 # PAGE CONFIG
 st.set_page_config(
     page_title="Analyzing a Consumer Habits Dataset",
-    page_icon="🐍",
+    page_icon="🛠️",
     layout="wide")
 
 page = st.sidebar.radio("Navigate", ["Binning Tool", "Seasonal Forecasting Tool"])
@@ -83,7 +90,7 @@ pd.set_option('display.width', 1000)
 if page == "Binning Tool":
     #=================================================================================================================================================================
     #TITLE
-    st.title("A Binning Tool That Considers Hypothesis Tests and/or Correlation Coefficients.",text_alignment='center',)
+    st.title("Bin Variables Based on Hypothesis Tests and/or Correlation Coefficients.",text_alignment='center',)
 
     #=================================================================================================================================================================
     #BIN
@@ -110,146 +117,156 @@ if page == "Binning Tool":
                                            categoric_columns=None,
                                            numeric_target=None,
                                            categoric_target=None )
-        return min_bin_dict
+        col_to_col_thresholds = bin.numeric_feature_col_thresholds
+        return min_bin_dict, col_to_col_thresholds
 
     coco=CompareColumns()
 
 
 
     #@st.cache_data
-    def update_data_with_binned_columns(data_,bin_dict,min_bins):
+    def update_data_with_binned_columns(data_,bin_dict):
         data=data_.copy()
         binned_list=[]
         for k, v in bin_dict.items():
-            v=max(v,min_bins)# set the minimun number of bins for any binned columns
             header=f"{k} -> Binned"
             data[header]=bin.binner(data[k],v,rescale=True,return_bins=False)
             data[header]=round(data[header],3).astype(float)    
             binned_list.append(header)
         return data,binned_list
 
-    bin_selection_cell                                     = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+    bin_selection_cell, col_to_col                          = st.columns([.5,.5],gap='large',vertical_alignment='top',border=True) 
+    choose_custom_binsize, bin_the_vars                     = st.columns([.5,.5],gap='large',vertical_alignment='top',border=True) 
+    examin_bins                                             =  st.columns([1],gap='large',vertical_alignment='top',border=True)
     pre_binned_lineplot_cell, pre_bin_relationships         = st.columns([.45,.55],gap='large',vertical_alignment='top',border=True)
-    post_binned_countplot_cell,post_binned_relationships   = st.columns([.45,.55],gap='large',vertical_alignment='top',border=True)
-    binned_mu_plot                                         = st.columns([1],gap='large',vertical_alignment='top',border=True) 
+    post_binned_countplot_cell,post_binned_relationships    = st.columns([.45,.55],gap='large',vertical_alignment='top',border=True)
+    binned_mu_plot                                          = st.columns([1],gap='large',vertical_alignment='top',border=True) 
 
+    # prefer stable, session-backed state over one-run flags
 
-    b_bin_selection_cell = False
-    b_pre_bin_relationships = False
-    b_pre_binned_lineplot_cell = False
-    b_post_binned_relationships = False
-    b_post_binned_countplot_cell = False
-    b_binned_mu_plot = False
-
-    bin_selection_cell=bin_selection_cell[0]
+    # a cell that resets the bin metric dicts and selects a column to update/review
     with bin_selection_cell:
-        if len(st.session_state.binned_columns)<1:        
-            st.subheader("Bin Continuous Variables", divider='grey', anchor=False, text_alignment='center')
-            get_binned_columns=True   #st.button("Click Here",width='stretch',key=2)
-            if get_binned_columns:
-                bin_dict=get_dict_for_min_bins()
-                data=st.session_state.data.copy()
-                st.session_state.data,binned_columns=update_data_with_binned_columns(data,bin_dict,st.session_state.min_num_bins_to_implement)
-                del data
-                st.session_state.binned_columns+=binned_columns
-                st.session_state.cat_columns+=binned_columns
-                missing_numerics=[col for col in st.session_state.unbinned_columns if col not in bin_dict.keys()]
-                if len(missing_numerics)>0:
-                    new_bins_dict=get_dict_for_min_bins(missing_numerics)
-                    bin_dict.update(new_bins_dict)
-                    data = st.session_state.data.copy()
-                    st.session_state.data,binned_columns=update_data_with_binned_columns(data,new_bins_dict,st.session_state.min_num_bins_to_implement) 
-                    del data
-                    st.session_state.binned_columns+=binned_columns
-                    st.session_state.cat_columns+=binned_columns
-                if (len(st.session_state.binned_columns)>0):
-                    st.markdown("Select the Variable to Examine.")
-                    try:
-                        unbinned_default_start_index=st.session_state.unbinned_columns.index(st.session_state.curr_but_original_unbinned)
-                    except:
-                        unbinned_default_start_index=0
-                    finally:
-                        unbinned = st.selectbox("", st.session_state.unbinned_columns, index=unbinned_default_start_index,key=1, 
+        st.markdown('Click to Bin Variables or to Reset Bins')
+        reset = st.button("Reset Bins",width='stretch',key=2)
+        if reset==True:
+            # Reload original data without binned columns
+            st.session_state.data = load_data()
+            # Reset all binning-related session state
+            st.session_state.abs_min_bins = None
+            st.session_state.col_by_col_min_bins = None
+            st.session_state.custom_min_bins = {}
+            st.session_state.binned_columns = []
+            st.session_state.binned_exists_as = None
+            st.session_state.curr_original_unbinned = 'Review Rating'
+            st.session_state.choose_columns = False
+            st.session_state.binning_processed = False
+            st.session_state.unbinned_columns = None
+            # Now compute fresh bin minimums
+            st.session_state.abs_min_bins, st.session_state.col_by_col_min_bins = get_dict_for_min_bins()
+            st.session_state.custom_min_bins = st.session_state.abs_min_bins.copy()
+            # Store the original numeric column names for selection
+            st.session_state.unbinned_columns = list(st.session_state.custom_min_bins.keys())
+            st.session_state.choose_columns = True
+            st.rerun()
+        # select box for columns in the custom bin dict
+        col_in_review=None
+        if st.session_state.choose_columns == True and st.session_state.unbinned_columns is not None:
+            col_in_review = st.selectbox("Choose a Column to Bin.", st.session_state.unbinned_columns, index=None,key='examine_mins', 
                                         help=None, on_change=None, args=None, kwargs=None, placeholder=None, 
                                         disabled=False, label_visibility="visible", accept_new_options=False, width="stretch")
-                        st.session_state.binned_exists_as = f"{unbinned} -> Binned"
-                        st.session_state.curr_but_original_unbinned = unbinned  
-                
-                    b_bin_selection_cell = True
-
-        else:  
+    with col_to_col:   
+        if col_in_review!=None: 
+            st.subheader("Bin Sizes", divider='grey', anchor=False, text_alignment='center')
+            st.markdown("Selected Variable's Binsizes Related to Others")
+            threshold_df = pd.DataFrame(st.session_state.col_by_col_min_bins[col_in_review]).T.rename(columns={'min_within_threshold':'MinBins'})
+            threshold_df = threshold_df['MinBins'].astype(int).to_frame()
+            st.dataframe(data=threshold_df, width="stretch", height="auto",  use_container_width=None, hide_index=None, 
+                            column_order=None, column_config=None, key=None, on_select="ignore", selection_mode="multi-row", 
+                            row_height=None, placeholder=None)
+    with choose_custom_binsize:   
+        if col_in_review!=None:
+            st.subheader("Pick a Bin Size", divider='grey', anchor=False, text_alignment='center')
+            absMin=1
+            new_binsize = st.number_input("Insert a number", step=1,min_value=absMin, value=max(absMin,5),key='get_custom_binsize')
+            submit_new_binsize = st.button("Submit",width='stretch',key=222)
+            if submit_new_binsize==True:
+                st.session_state.custom_min_bins[col_in_review]=new_binsize
+                st.info("Select More Variables or Continue.")
+                submit_new_binsize=False
+    with bin_the_vars:
+        if st.session_state.abs_min_bins!=None:
+            move_on_with_selected = st.button("Process",width='stretch',key='move_on_with_selected')
+            st.markdown("Process Default & Custom Bins.")
+            if move_on_with_selected==True:                 
+                data=st.session_state.data.copy()
+                st.session_state.data,binned_columns=update_data_with_binned_columns(data,st.session_state.custom_min_bins)
+                del data
+                # Can ensure that there where columns to bin. That's all st.session_state.binned_columns does.
+                st.session_state.binned_columns+=binned_columns
+                st.session_state.binning_processed = True
+    
+    examin_bins=examin_bins[0]
+    with examin_bins:
+        if st.session_state.binning_processed and (len(st.session_state.binned_columns)>0):
             st.subheader("Column Selection", divider='grey', anchor=False, text_alignment='center')
             st.markdown("Select the Binned Variable You Want to Examine.")
             try:
-                unbinned_default_start_index=st.session_state.unbinned_columns.index(st.session_state.curr_but_original_unbinned)
+                unbinned_default_start_index=st.session_state.unbinned_columns.index(st.session_state.curr_original_unbinned)
             except:
                 unbinned_default_start_index=0
             finally:
-                unbinned = st.selectbox("", st.session_state.unbinned_columns, index=unbinned_default_start_index,key=None, 
+                unbinned = st.selectbox("", st.session_state.unbinned_columns, index=unbinned_default_start_index,key="selected_unbinned", 
                                 help=None, on_change=None, args=None, kwargs=None, placeholder=None, 
                                 disabled=False, label_visibility="visible", accept_new_options=False, width="stretch")
                 st.session_state.binned_exists_as = f"{unbinned} -> Binned"
-                st.session_state.curr_but_original_unbinned = unbinned
-        
-            b_bin_selection_cell = True
+                st.session_state.curr_original_unbinned = unbinned
 
     with pre_binned_lineplot_cell:
-        st.subheader('Pre Bin Plot', divider='grey', anchor=False, text_alignment='center')
-        st.markdown("Line Plot")
-        if st.session_state.binned_exists_as==None:
-            st.info("",icon="🐍")
-        else:
-            unbinned_lineplot_data=st.session_state.data[st.session_state.curr_but_original_unbinned].copy().to_frame().reset_index(drop=True).reset_index(drop=False)#.sort_values(by=st.session_state.curr_but_original_unbinned,ascending=True)
+        if st.session_state.binned_exists_as!=None:
+            st.subheader('Pre Bin Plot', divider='grey', anchor=False, text_alignment='center')
+            st.markdown("Line Plot")
+            unbinned_lineplot_data=st.session_state.data[st.session_state.curr_original_unbinned].copy().to_frame().reset_index(drop=True).reset_index(drop=False)#.sort_values(by=st.session_state.curr_original_unbinned,ascending=True)
             st.line_chart(data=unbinned_lineplot_data, x=unbinned_lineplot_data.columns[0], 
-                          y=unbinned_lineplot_data.columns[1], x_label=None, y_label=st.session_state.curr_but_original_unbinned, color=None, 
+                          y=unbinned_lineplot_data.columns[1], x_label=None, y_label=st.session_state.curr_original_unbinned, color=None, 
                           width="stretch", height="content", use_container_width=None)
             
-            b_pre_binned_lineplot_cell=True
 
     with pre_bin_relationships: 
-        st.subheader('Pre Bin Relationships', divider='grey', anchor=False, text_alignment='center')
-        st.markdown("Metrics Before Binning")
-        if b_pre_binned_lineplot_cell==False:
-            st.info("",icon="🐍")
-        else:
+        if st.session_state.binned_exists_as!=None:
+            st.subheader('Pre Bin Relationships', divider='grey', anchor=False, text_alignment='center')
+            st.markdown("Metrics Before Binning")
             pre_combined=coco.column_comparison(st.session_state.data,
                             numnum_meth_alpha_above=st.session_state.numnum_metrics,
                             catnum_meth_alpha_above=st.session_state.catnum_metrics,
                             catcat_meth_alpha_above=None,
                             numeric_columns=None,
                             categoric_columns=None,
-                            numeric_target=st.session_state.curr_but_original_unbinned,
+                            numeric_target=st.session_state.curr_original_unbinned,
                             categoric_target=None )
-            pre_combined=pre_combined.loc[( (pre_combined['column_a']==st.session_state.curr_but_original_unbinned)|(pre_combined['column_b']==st.session_state.curr_but_original_unbinned) )&(pre_combined['column_a']!=pre_combined['column_b'])&~( (pre_combined['column_a']+" -> Binned"==pre_combined['column_b'])|(pre_combined['column_a']==pre_combined['column_b']+" -> Binned") )].round(3)
-            pre_target_on_right = pre_combined['column_b'] == st.session_state.curr_but_original_unbinned
+            pre_combined=pre_combined.loc[( (pre_combined['column_a']==st.session_state.curr_original_unbinned)|(pre_combined['column_b']==st.session_state.curr_original_unbinned) )&(pre_combined['column_a']!=pre_combined['column_b'])&~( (pre_combined['column_a']+" -> Binned"==pre_combined['column_b'])|(pre_combined['column_a']==pre_combined['column_b']+" -> Binned") )].round(3)
+            pre_target_on_right = pre_combined['column_b'] == st.session_state.curr_original_unbinned
             pre_combined.loc[pre_target_on_right, ['column_a', 'column_b']] = ( pre_combined.loc[pre_target_on_right, ['column_b', 'column_a']].to_numpy())
             pre_combined=pre_combined.sort_values(by=['column_b'],ascending=[True]).drop_duplicates(subset=['column_a','column_b'],keep='first').reset_index(drop=True)
             st.dataframe(data=pre_combined[[col for col in pre_combined if col in ['column_b','P-value','Coefficient']]], width="stretch", height="auto",  use_container_width=None, hide_index=None, 
                          column_order=None, column_config=None, key=None, on_select="ignore", selection_mode="multi-row", 
                          row_height=None, placeholder=None) 
             
-            b_pre_bin_relationships=True
 
     with post_binned_countplot_cell:
-        st.subheader('Post Bin Plot', divider='grey', anchor=False, text_alignment='center')
-        st.markdown("Count Plot")
-        if b_pre_bin_relationships==False:
-            st.info("",icon="🐍")
-        else:
+        if st.session_state.binned_exists_as!=None:
+            st.subheader('Post Bin Plot', divider='grey', anchor=False, text_alignment='center')
+            st.markdown("Count Plot")
             binned_countplot_data=st.session_state.data[st.session_state.binned_exists_as].to_frame().groupby(st.session_state.binned_exists_as,as_index=False,observed=True).size().sort_values(by='size',ascending=False).reset_index(drop=True)
             st.bar_chart(data=binned_countplot_data, x=binned_countplot_data.columns[0], 
                          y=binned_countplot_data.columns[1], x_label=binned_countplot_data.columns[0], y_label="Counts", color=None, 
                          horizontal=False, sort=True, stack=None, width="stretch", height="content", use_container_width=None)
             
-            b_post_binned_countplot_cell=True
 
 
     with post_binned_relationships:
-        st.subheader('Post Bin Relationships', divider='grey', anchor=False, text_alignment='center')
-        st.markdown("Statistically Significant Relationships After Binning")
-        if b_post_binned_countplot_cell==False:
-            st.info("",icon="🐍")
-        else:
+        if st.session_state.binned_exists_as!=None:
+            st.subheader('Post Bin Relationships', divider='grey', anchor=False, text_alignment='center')
+            st.markdown("Statistically Significant Relationships After Binning")
             post_combined=coco.column_comparison(st.session_state.data,
                             numnum_meth_alpha_above=st.session_state.numnum_metrics,
                             catnum_meth_alpha_above=st.session_state.catnum_metrics,
@@ -266,18 +283,13 @@ if page == "Binning Tool":
                          column_order=None, column_config=None, key=None, on_select="ignore", selection_mode="multi-row", 
                          row_height=None, placeholder=None)  
             
-            b_post_binned_relationships=True          
 
     binned_mu_plot=binned_mu_plot[0]
     with binned_mu_plot:
-        st.markdown("Bin Means")
-        if b_post_binned_relationships==False:
-            st.info("",icon="🐍")
-        else:
+        if st.session_state.binned_exists_as!=None:
+            st.markdown("Bin Means")
             muest=MuEstimator()
-            muest.get_floating_mean_hbar(st.session_state.data,st.session_state.curr_but_original_unbinned,0.95,[st.session_state.binned_exists_as],plot_title=None,median=False,streamlit=True)
-
-            b_binned_mu_plot = True
+            muest.get_floating_mean_hbar(st.session_state.data,st.session_state.curr_original_unbinned,0.95,[st.session_state.binned_exists_as],plot_title=None,median=False,streamlit=True)
 
 
     #=================================================================================================================================================================
@@ -293,14 +305,10 @@ if page == "Binning Tool":
 
     r_mu_and_relation_plot=r_mu_and_relation_plot[0]
     with r_mu_and_relation_plot:
-        if (b_binned_mu_plot==False):
-            st.info("",icon="🐍")
-        else:
-            mu_column, partition_column =  st.session_state.curr_but_original_unbinned+" -> Binned", None
+        if st.session_state.binned_exists_as!=None:
+            mu_column, partition_column =  st.session_state.curr_original_unbinned+" -> Binned", None
             muest2=MuEstimator()
             muest2.get_floating_proportion_hbar(st.session_state.data,mu_column,0.95,partition_column,plot_title=None,streamlit=True, proportion_within_partition=True)
-
-            rr_mu_and_relation_plot=True
 
 elif page == "Seasonal Forecasting Tool":
     #=================================================================================================================================================================
@@ -331,33 +339,19 @@ elif page == "Seasonal Forecasting Tool":
     with col1a:
         st.subheader("Select", divider='grey', anchor=False, text_alignment='center')
         st.markdown("Pick a Period to Forecast Seasonal Sales By.")
-        week_button=st.button("Forecast by Week",
-                              type="primary",
-                              use_container_width=True  )
-        month_button=st.button("Forecast by Month",
-                              type="primary",
-                              use_container_width=True  )
-        season_button=st.button("Forecast by Season",
-                              type="primary",
-                              use_container_width=True  )
-        period_button=None
-        if (week_button and month_button) or (week_button and season_button) or (month_button and season_button) or (week_button and month_button and season_button):
-            st.info('Only One Period at a Time.\nPlease Deselect Button(s).', icon="🐍")
-        elif (not week_button) and (not month_button) and (not season_button):
-            if st.session_state.binned_exists_as==None:
-                period_button=period_button  # no change
-            else: period_button='month'
-        elif week_button:
-            period_button='week'
-        elif month_button:
-            period_button='month'
-        elif season_button:
-            period_button='season'
+        period_button = st.radio(
+            "",
+            ["week", "month", "season"],
+            index=None,
+            key="period_button",
+            horizontal=False,
+            label_visibility="collapsed",
+        )
 
     with col2a:
         st.subheader("Forecasted Sales Per Period", divider='grey', anchor=False, text_alignment='center')
         if period_button is None:
-            st.info('Please Select a Period to Forecast.', icon="🐍")
+            st.markdown('Please Select a Period to Forecast.')
         elif period_button is not None:
             pie_plot(df=st.session_state.data,period=period_button)# with button as input
 
@@ -366,6 +360,6 @@ elif page == "Seasonal Forecasting Tool":
         st.subheader("A Full Year's Accumulative Sales Forecast", divider='grey', anchor=False, text_alignment='center')
         with st.container():
             if period_button is None:
-                st.info('', icon="🐍")
+                st.markdown('')
             elif period_button is not None:
                 floating_cdf_plot(df=st.session_state.data,period=period_button)# with button as input

@@ -9,10 +9,10 @@ try:
     from .Utils_HypTests_and_Coefficients.Coefficient import Coefficient
     from .Utils_HypTests_and_Coefficients.TTests import TTests
 except:
-    from ANOVA import ANOVA
-    from Chi2 import Chi2
-    from Coefficient import Coefficient
-    from TTests import TTests
+    from Utils_HypTests_and_Coefficients.ANOVA import ANOVA
+    from Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from Utils_HypTests_and_Coefficients.Coefficient import Coefficient
+    from Utils_HypTests_and_Coefficients.TTests import TTests
 
 class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
 
