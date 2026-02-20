@@ -414,8 +414,9 @@ elif page == "Insights Gained w/ Binning Tool":
         P_L_given_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Ship.png")
         st.markdown("Standard shipping spikes for high reviews, but most other Shipping Types spike for low reviews.")
         st.image(P_L_given_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        #Paretos_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Ship.png")
-        #st.image(Paretos_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
+        Probas_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Probas_Ship.png")
+        st.markdown("For Shipping Types, probabilities for low Reviews tend to be high in both directions together.")
+        st.image(Probas_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
     
     with sixteen_levels_[0]:
         st.subheader("Review Ratings Binned Into 16 Levels", divider='grey', anchor=False, text_alignment='center')
