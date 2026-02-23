@@ -24,22 +24,27 @@ class ANOVA:
 
     # PREPROCESS
     # for uniform 2-way-ANOVA interaction sizes
-    # presently stratification is not supported, stochastic under/over sampling is. 
-    # In future versions, stratifications can be achieved with pd.sample(weights=) fitted based on bins&Probabilities
     # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.sample.html 
     
-    def create_uniform_interactions(self, xx_y_prep_df,min_size=5, override_min=False, ntile=None):
+    def create_uniform_interactions(self, xx_y_prep_df,min_size=5, override_min=False, ntile=None, stratify:None|pd.Series):
         """
         override_min will sample with replacement from small datasets
         if ntile is not none, the interseciton size will be the ntile of sizes that are greater than min, otherwise smallest acceptable interaciton's size will be used
-
+        where stratify can be None, and sampling will be random, or a pd.series of the binned y variable with an index that aligns with the xx_y_prep_df pd.dataframe index
         """
         three_col_XX_y=pd.DataFrame(xx_y_prep_df.copy())
         cols=three_col_XX_y.columns
         x1 = cols[0]
         x2 = cols[1]
         y = cols[2]
-
+        binned_y = None 
+        if stratify!=None:
+            try:
+                binned_y = stratify.name
+            except:
+                if 'binned_y' not in (x1,x2,y):
+                    binned_y = 'binned_y'
+                else: binned_y = 'temp_name__t_r_e_e'
         #unique values for interactions
         x1_vars=three_col_XX_y[x1].unique()
         x2_vars=three_col_XX_y[x2].unique()
@@ -59,24 +64,40 @@ class ANOVA:
             #
             #warning
             for interaction in interactions:
-                data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False)
+                weights=None
+                if stratify!=None:
+                    three_col_XX_y[binned_y] = stratify
+                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False, weights=weights)
                 result.append(data)
             if override_min==True:
                 #
                 #warning
                 for interaction in too_small_interactions:
-                    data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False)
+                    weights=None
+                    if stratify!=None:
+                        three_col_XX_y[binned_y] = stratify
+                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                    data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
                     result.append(data)
         elif ntile is None:
             n_rows=min(sizes)
             for interaction in interactions:
-                data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows)
+                weights=None
+                if stratify!=None:
+                    three_col_XX_y[binned_y] = stratify
+                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows, replace=False)
                 result.append(data)
             if override_min==True:
                 #
                 #warning
                 for interaction in too_small_interactions:
-                    data=three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
+                    weights=None
+                    if stratify!=None:
+                        three_col_XX_y[binned_y] = stratify
+                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                    data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
                     result.append(data)
         if override_min==True:
             interactions=interactions+too_small_interactions
