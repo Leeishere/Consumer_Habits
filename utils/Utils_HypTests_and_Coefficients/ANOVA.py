@@ -26,7 +26,7 @@ class ANOVA:
     # for uniform 2-way-ANOVA interaction sizes
     # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.sample.html 
     
-    def create_uniform_interactions(self, xx_y_prep_df,min_size=5, override_min=False, ntile=None, stratify:None|pd.Series):
+    def create_uniform_interactions(self, xx_y_prep_df,min_size=5, override_min=False, ntile=None, stratify:None|pd.Series=None):
         """
         override_min will sample with replacement from small datasets
         if ntile is not none, the interseciton size will be the ntile of sizes that are greater than min, otherwise smallest acceptable interaciton's size will be used

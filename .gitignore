@@ -7,3 +7,6 @@ GitIgnoredStuff/
 /SalesMinds
 /__pycache__
 /TimeTests.ipynb
+/AnalysisClassGamePlan.ipynb
+/ReviewsToDo.ipynb
+/utils/PlotClass.py
