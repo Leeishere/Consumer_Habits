@@ -24,7 +24,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
                         numeric_target:str|list|None=None,
-                        categoric_target:str|list|None=None ):
+                        categoric_target:str|list|None=None):
         """
         parameters:
         df: a pandas dataframe
@@ -125,7 +125,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
                         numeric_target:str|list|None=None,
-                        categoric_target:str|list|None=None ):
+                        categoric_target:str|list|None=None):
         """
         parameters:
         df: a pandas dataframe
@@ -159,8 +159,8 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
 
         # append relevant dataframes to the concat list
         if include_catnum and (catnum_meth_alpha_above is not None):
-            if (not isinstance(catnum_meth_alpha_above[0],list)) or (not isinstance(catnum_meth_alpha_above[0],tuple)):
-                raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
+            if (not isinstance(catnum_meth_alpha_above[0],list)) and (not isinstance(catnum_meth_alpha_above[0],tuple)):
+                raise ValueError(f"multi_test_column_comparison() should have var-to-var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
             for instruction in catnum_meth_alpha_above: 
                 #retrieve cat to num df
                 if instruction[0] not in ('anova','kruskal'):
@@ -178,7 +178,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 if catnum_df.shape[0]>0:
                     result_frames_to_concat.append(catnum_df)
         if include_catcat and (catcat_meth_alpha_above is not None):
-            if (not isinstance(catcat_meth_alpha_above[0],list)) or (not isinstance(catcat_meth_alpha_above[0],tuple)):
+            if (not isinstance(catcat_meth_alpha_above[0],list)) and (not isinstance(catcat_meth_alpha_above[0],tuple)):
                 raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
             for instruction in catcat_meth_alpha_above: 
                 # retrieve cat to cat df
@@ -194,34 +194,35 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 if catcat_df.shape[0]>0:
                     result_frames_to_concat.append(catcat_df)
         if include_numnum and (numnum_meth_alpha_above is not None):
-                        if (not isinstance(catcat_meth_alpha_above[0],list)) or (not isinstance(catcat_meth_alpha_above[0],tuple)):
+            if (not isinstance(numnum_meth_alpha_above[0],list)) and (not isinstance(numnum_meth_alpha_above[0],tuple)):
                 raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
-            for instruction in catcat_meth_alpha_above: 
-            # retrieve num to num df
-            if numnum_meth_alpha_above[0] in ('pearson','spearman','kendall'):
-                numnum_df=self.num_num_column_coefficient_comparison(df,
-                                                                    corr_threshold=numnum_meth_alpha_above[1],
-                                                                    keep_above_corr=numnum_meth_alpha_above[2],
+            for instruction in numnum_meth_alpha_above: 
+                # retrieve num to num df
+                if instruction[0] in ('pearson','spearman','kendall'):
+                    numnum_df=self.num_num_column_coefficient_comparison(df,
+                                                                        corr_threshold=instruction[1],
+                                                                        keep_above_corr=instruction[2],
+                                                                        numeric_columns=numeric_columns,
+                                                                        target=numeric_target,
+                                                                        corr_method=instruction[0])
+                elif instruction[0] in ('welch','student'):
+                    numnum_df=self.num_num_column_t_test_comparison(df,
+                                                                    alpha=instruction[1],
+                                                                    keep_above_p=instruction[2],
                                                                     numeric_columns=numeric_columns,
                                                                     target=numeric_target,
-                                                                    corr_method=numnum_meth_alpha_above[0])
-            elif numnum_meth_alpha_above[0] in ('welch','student'):
-                numnum_df=self.num_num_column_t_test_comparison(df,
-                                                                alpha=numnum_meth_alpha_above[1],
-                                                                keep_above_p=numnum_meth_alpha_above[2],
-                                                                numeric_columns=numeric_columns,
-                                                                target=numeric_target,
-                                                                t_test_method=numnum_meth_alpha_above[0])
-                
-            else:
-                raise ValueError(f"Numeric to Numeric method not recognized. Expected one of ('pearson','spearman','kendall','welch','student'). Recieved {numnum_meth_alpha_above[0]}",ValueError)
-            numnum_df=numnum_df.rename(columns={'numeric_1':'column_a','numeric_2':'column_b'})
-            numnum_df['test']=numnum_meth_alpha_above[0]
-            if numnum_df.shape[0]>0:
-                result_frames_to_concat.append(numnum_df)
+                                                                    t_test_method=instruction[0])
+                    
+                else:
+                    raise ValueError(f"Numeric to Numeric method not recognized. Expected one of ('pearson','spearman','kendall','welch','student'). Recieved {numnum_meth_alpha_above[0]}",ValueError)
+                numnum_df=numnum_df.rename(columns={'numeric_1':'column_a','numeric_2':'column_b'})
+                numnum_df['test']=instruction[0]
+                if numnum_df.shape[0]>0:
+                    result_frames_to_concat.append(numnum_df)
         possible_columns=['column_a','column_b','test','P-value','Correlation']
         if len(result_frames_to_concat)<1:
             return pd.DataFrame(columns=possible_columns)
         result=pd.concat(result_frames_to_concat)
         result=result[[col for col in possible_columns if col in result.columns]]
+        
         return result
