@@ -317,7 +317,7 @@ class Chi2:
         proportion_deterministic = (mapping_counts == 1).mean()
         return proportion_deterministic
 
-
+    # this should be done with .unstack(). .unstack() is often faster than crosstab in pandas, and oftern faster than marges or joins in cudf
     def evidence_is_supercat_given_subcat(self,df,supercat,subcat,is_cudf:bool=False):
         """
         Measures uncertainty in `super_col` given `sub_col`

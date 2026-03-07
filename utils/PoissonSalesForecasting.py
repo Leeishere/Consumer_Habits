@@ -380,7 +380,7 @@ class PoissonSalesForecasting(ProbabilisticModeling):
         plt.gca().set_facecolor("black") 
         #format legend
         plt.rcParams['legend.fontsize']=15
-        leg = plt.legend()
+        leg = plt.legend(frameon=False)
         for text in leg.get_texts():
             text.set_color("white")
         plt.grid(linewidth=.1)
