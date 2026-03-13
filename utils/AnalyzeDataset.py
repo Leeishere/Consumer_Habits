@@ -235,6 +235,29 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
 
         test_instructions_list = [instruction for instruction in [self.numnum_meth_alpha_above,self.catnum_meth_alpha_above,self.catcat_meth_alpha_above] if instruction != None]
         
+        # a helper function that updates class instances instead of overwriting in cases where fit is called multiple times, such as to prevent data loss
+        def class_instance_updater(new_vals, existing_instance):
+            """
+            return a list that can replace the existing
+            does not modify existing in place
+            """
+            # only need to check if it's not the first fit
+            # in that case existing_instance will be [] on first fit
+            if existing_instance:
+                vals_to_add = []
+                for pair in new_vals:
+                    is_new_pair=True
+                    for existing in existing_instance:
+                        if ((pair[0]==existing[0]) and (pair[1]==existing[1])) or ((pair[0]==existing[1]) and (pair[1]==existing[0])):
+                            is_new_pair=False
+                            break
+                    if is_new_pair==True:
+                        vals_to_add.append(pair)
+                result = existing_instance + vals_to_add 
+            else:
+                result = new_vals
+            return result
+        
         for instructions in test_instructions_list:
             significant , not_significant = self._categorize_bivariate_tests_as_rej_or_failrej(test_df=test_df,
                                                                                             test_instructions=instructions)
@@ -242,9 +265,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             # use the test instrucitons to determine where to put each column: categorical or numeric
             samp_test=instructions[0][0]
     
+
             # store relationships and test for each column
             # map col_a and col_b to target col's value_dict in self.target_cols_with_significant_matches_and_not_significant
-            
             # begin with significant relationships                                                                            
             if significant:
                 if samp_test in ('pearson','spearman','kendall','welch','student'):
@@ -252,21 +275,28 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     left_test_destination = 'significant_numeric_tests'
                     right_destination='significant_numeric_relationships'
                     right_test_destination = 'significant_numeric_tests'
-                    self.above_threshold_corr_numnum    = significant
+                    # update model only if not already included in model
+                    self.above_threshold_corr_numnum = class_instance_updater(significant, self.above_threshold_corr_numnum)                       
+                      
                 elif samp_test in ('kruskal','anova'):
                     left_destination='significant_numeric_relationships'
                     left_test_destination = 'significant_numeric_tests'
                     right_destination='significant_categoric_relationships'
                     right_test_destination = 'significant_categoric_tests'
-                    self.reject_null_catnum             = significant
+                    # update model only if not already included in model
+                    self.reject_null_catnum = class_instance_updater(significant, self.reject_null_catnum)  
+                    
                 elif samp_test in ('chi2'):
                     left_destination='significant_categoric_relationships'
                     left_test_destination = 'significant_categoric_tests'
                     right_destination='significant_categoric_relationships'
                     right_test_destination = 'significant_categoric_tests'
-                    self.reject_null_catcat             = significant
+                    # update model only if not already included in model
+                    self.reject_null_catcat = class_instance_updater(significant, self.reject_null_catcat)                     
+
                 else:
                     raise ValueError(f'{samp_test} not recognized as a test type. Recognized are: pearson,spearman,kendall,welch,student,kendall,anova,chi2')
+                
                 for pair_test in significant:
                     # initialize targets in the dict if the aren't already initialized
                     left_col, right_col, test_dash_tests = pair_test[0], pair_test[1], pair_test[2]
@@ -279,8 +309,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                     self.target_cols_with_significant_matches_and_not_significant[left_col]['target_dtype']=['numeric']
                                 elif left_destination=='significant_categoric_relationships':
                                     self.target_cols_with_significant_matches_and_not_significant[left_col]['target_dtype']=['categoric']
-                            self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination].append(right_col)
-                            self.target_cols_with_significant_matches_and_not_significant[left_col][right_test_destination].append(test_dash_tests)
+                            if right_col not in self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination]:
+                                self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination].append(right_col)
+                                self.target_cols_with_significant_matches_and_not_significant[left_col][right_test_destination].append(test_dash_tests)
                         # right col
                         if not targets or (right_col in targets):
                             if right_col not in self.target_cols_with_significant_matches_and_not_significant.keys():
@@ -289,8 +320,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                     self.target_cols_with_significant_matches_and_not_significant[right_col]['target_dtype']=['numeric']
                                 elif right_destination=='significant_categoric_relationships':
                                     self.target_cols_with_significant_matches_and_not_significant[right_col]['target_dtype']=['categoric']
-                            self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination].append(left_col)
-                            self.target_cols_with_significant_matches_and_not_significant[right_col][left_test_destination].append(test_dash_tests)
+                            if left_col not in self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination]:
+                                self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination].append(left_col)
+                                self.target_cols_with_significant_matches_and_not_significant[right_col][left_test_destination].append(test_dash_tests)
                     else:
                         continue
             
@@ -299,17 +331,23 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 if samp_test in ('pearson','spearman','kendall','welch','student'):
                     left_destination='not_significant_numerics'
                     right_destination='not_significant_numerics'
-                    self.below_threshold_corr_numnum    = not_significant
+                    # update model only if not already included in model
+                    self.below_threshold_corr_numnum = class_instance_updater(not_significant, self.below_threshold_corr_numnum)  
+
                 elif samp_test in ('kruskal','anova'):
                     left_destination='not_significant_numerics'
                     right_destination='not_significant_categorics'
-                    self.fail_to_reject_null_catnum     = not_significant
+                    # update model only if not already included in model
+                    self.fail_to_reject_null_catnum = class_instance_updater(not_significant, self.fail_to_reject_null_catnum)  
+                    
                 elif samp_test in ('chi2'):
                     left_destination='not_significant_categorics'
                     right_destination='not_significant_categorics'  
-                    self.fail_to_reject_null_catcat     = not_significant                     
+                    # update model only if not already included in model
+                    self.fail_to_reject_null_catcat = class_instance_updater(not_significant, self.fail_to_reject_null_catcat) 
                 else:
                     raise ValueError(f'{samp_test} not recognized as a test type. Recognized are: pearson,spearman,kendall,welch,student,kendall,anova,chi2')      
+                
                 for pair_test in not_significant:
                     # initialize targets in the dict if the aren't already initialized
                     left_col, right_col = pair_test[0], pair_test[1]
@@ -322,7 +360,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                     self.target_cols_with_significant_matches_and_not_significant[left_col]['target_dtype']=['numeric']
                                 elif left_destination=='not_significant_categorics':
                                     self.target_cols_with_significant_matches_and_not_significant[left_col]['target_dtype']=['categoric']
-                            self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination].append(right_col)
+                            if right_col not in self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination]:
+                                self.target_cols_with_significant_matches_and_not_significant[left_col][right_destination].append(right_col)
                         # right col
                         if not targets or (right_col in targets):
                             if right_col not in self.target_cols_with_significant_matches_and_not_significant.keys():
@@ -331,9 +370,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                     self.target_cols_with_significant_matches_and_not_significant[right_col]['target_dtype']=['numeric']
                                 elif right_destination=='not_significant_categorics':
                                     self.target_cols_with_significant_matches_and_not_significant[right_col]['target_dtype']=['categoric']
-                            self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination].append(left_col)
+                            if left_col not in self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination]:
+                                self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination].append(left_col)
                     else:
                         continue
+        return
 
     #######################################################################################
     # A FUNCTION TO PROCESS CATEGORIC AND NUMERIC TARGETS
@@ -509,7 +550,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 )
 
         # identify target(s) if present
-        targets = self._combine_targets(numeric_target=numeric_target, categoric_target=categoric_target)
+        targets = self._combine_targets(numeric_target=numeric_target, 
+                                        categoric_target=categoric_target)
 
         # compute significant and not-significant bivariate pairs -- w/ test for significant pairs
         self._update_model_with_test_df_to_col_pairs_and_cols_as_targets(test_df=test_df,
@@ -550,11 +592,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         for col in self.reject_null_good_of_fit:
             if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
                 self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
-            self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('reject_uniform')
+            if col not in self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']:
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('reject_uniform')
         for col in self.fail_to_reject_null_good_of_fit:
             if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
                 self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
-            self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('fail_to_reject_uniform')
+            if col not in self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']:
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('fail_to_reject_uniform')
         return  # exit the function
 
     #######################################################################################
@@ -638,10 +682,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             # compute pairs, then remove those columns and compute 3's with left over, etcetera for 4's, 5's sorforth if/when parameters consider byond 2's
             #iterate while max num possible combos is not exceded: max_n_combinations
             biggest_combo_size_checked=0
-            population_size = len(self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics'])
+            population_size = len(set(self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics']))
             curr_combo_size = min_combo_size
+            curr_max_len_combo = min(population_size,max_n_combination_size) # used to update curr_n_possible_combinations and elsewhere
             curr_n_possible_combinations = calculate_num_combinations(population_size,curr_combo_size) +1 # plus one because the try/except block will handle it
-            while (curr_combo_size<=max_n_combination_size) and (curr_n_possible_combinations<=max_n_combinations) and (population_size>=curr_combo_size):
+            while (curr_combo_size<=curr_max_len_combo) and (curr_n_possible_combinations<=max_n_combinations) and (population_size>=curr_combo_size):
                 # BEGIN INNER LOOP TO ITERATE THROUGH THESE COMBOS
                 # iterate through categoric variables that have not yet been included in a reject null test in previous combo sizes
                 combo_generator = combinations(list(set(self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics'])),curr_combo_size)
@@ -707,7 +752,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                             else:
                                 seen_and_significant=set(curr_combo)
                 # after each size, remove combos that have already been in a significant group from 'not_significant_categorics' 
-                # the idea is that, otherwise, these groups would re-apear with additional collumns that may not really contribute 
+                # the idea is that, otherwise, these groups would re-apear with additional columns that may not really contribute 
+                # risk of loss of information is already minimized for cases of replacement because col_a can already be paired as both (col_a,col_b) and (col_a,col_c) 
+                # furthermore, because they are removed here, 
+                #           some edge cases where fit calls are made peacemeal are avoided, 
+                #           other edge cases should be handled elsewhere
+
                 try: 
                     for var in list(seen_and_significant):
                         var_index=self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics'].index(var)
@@ -721,8 +771,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 #update biggest_combo_size_checked, curr_combo_size, curr_n_possible_combinations, and population_size
                 biggest_combo_size_checked=curr_combo_size
                 curr_combo_size+=1
-                curr_n_possible_combinations=calculate_num_combinations(population_size,curr_combo_size) +1
-                population_size=len(self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics'])
+                population_size=len(list(set(self.target_cols_with_significant_matches_and_not_significant[target]['not_significant_categorics'])))
+                curr_max_len_combo = min(population_size,max_n_combination_size)
+                curr_n_possible_combinations=calculate_num_combinations(population_size,min(curr_combo_size,curr_max_len_combo)) +1 # where curr_max_len_combo is <=population_size by design
             # if the loop was never entered 
             if curr_combo_size==min_combo_size:
                 if curr_n_possible_combinations > max_n_combinations:
@@ -874,7 +925,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         categoric_columns=categoric_columns)        
         if fit_multivariates==True:
             # identify target(s) if present
-            targets = self._combine_targets(numeric_target=numeric_target, categoric_target=categoric_target)
+            targets = self._combine_targets(numeric_target=numeric_target, 
+                                            categoric_target=categoric_target)
             fit_multivariate_args=self.multivariate_params
             self.fit_multivariate_column_relationships(df=data,
                                                 targets=targets,
