@@ -2,6 +2,7 @@
 
 import pandas as pd
 import numpy as np
+import inspect
 
 try:
     from .Utils_HypTests_and_Coefficients.ANOVA import ANOVA
@@ -125,7 +126,12 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
                         numeric_target:str|list|None=None,
-                        categoric_target:str|list|None=None):
+                        categoric_target:str|list|None=None,
+                        cols_to_exclude_from_targets:str|list|None=None,
+                        check_assumptions:bool|None=None,
+                        anova_assumption_check_params:dict|None=None,
+                        kruskal_assumption_check_params:dict|None=None,
+                        chi2_assumption_check_params:dict|None=None):
         """
         parameters:
         df: a pandas dataframe
@@ -139,6 +145,24 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 catcat_meth_alpha_above for a categoric-to-categoric comparison. Accepts method of ('chi2'). 
         numeric_columns and categoric_columns accept manual column input. Otherwise columns are autodetected,
         numeric_target and categoric_target accept target columns. If either or both, only combinations involving targets will be considered
+        
+        Kruskal Wallis Assumption Defaults & Explanations for parameter kruskal_assumption_check_params
+                levene_alpha =  0.05  # for leven test of variance
+                ks_alpha = 0.05       # ks test of similar distributions
+                dropna = True         # whether categoric variable NaNs should be treated as categories or dropped
+                return_pseudo = False # when standard assumptions aren't met, revert to pseudo test
+                    returns 'Pseudo' or false based on test for difference in distributions within groups: 
+                    location shifts, variance differences, skewness, tail behavior
+                    these/this assumption takes less computation
+                pseudo_test_max_global_ties_ratio =  0.5   # max ratio in pseudo test: >0.5 is bad, >0.7 is dangerous
+                full_pseudo = False                        # only use pseudo, not the full assumption check
+
+        ANOVA Assumption Defaults & Explanations for parameter anova_assumption_check_params
+                normality_alpha= 0.02   # for Kolmogorov-Smirnov test of normality
+                homogeneity_alpha= 0.02 # leven test of variance
+                min_n= 5                # min obs per group
+                iqr_multiplier= 2       # outlier detection
+                dropna= True            # determines whether to drop categoric NaN obs, or treat them as categories
         """
         # a list to store datframes in. it will be used in a concat function 
         result_frames_to_concat = []
@@ -161,7 +185,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
         if include_catnum and (catnum_meth_alpha_above is not None):
             if (not isinstance(catnum_meth_alpha_above[0],list)) and (not isinstance(catnum_meth_alpha_above[0],tuple)):
                 raise ValueError(f"multi_test_column_comparison() should have var-to-var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
-            for instruction in catnum_meth_alpha_above: 
+            for instruction in catnum_meth_alpha_above:                
                 #retrieve cat to num df
                 if instruction[0] not in ('anova','kruskal'):
                     raise ValueError(f"Categoric to Numeric method not recognized. Expected one of ('anova','kruskal'). Recieved {catnum_meth_alpha_above[0]}",ValueError)
@@ -172,7 +196,11 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                                                             categoric_columns=categoric_columns,
                                                             numeric_target=numeric_target,
                                                             categoric_target=categoric_target,
-                                                            test_method=instruction[0])  
+                                                            test_method=instruction[0],
+                                                            cols_to_exclude_from_targets=cols_to_exclude_from_targets,                                                            
+                                                            check_assumptions=check_assumptions,
+                                                            anova_assumption_check_params=anova_assumption_check_params,
+                                                            kruskal_assumption_check_params=kruskal_assumption_check_params)  
                 catnum_df=catnum_df.rename(columns={'category':'column_b','numeric':'column_a'})
                 catnum_df['test']=instruction[0]
                 if catnum_df.shape[0]>0:
@@ -188,7 +216,9 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                                                                 alpha=instruction[1],
                                                                 keep_above_p=instruction[2],
                                                                 categoric_columns=categoric_columns,
-                                                                categoric_target=categoric_target )
+                                                                categoric_target=categoric_target,                                                            
+                                                                check_assumptions=check_assumptions,
+                                                                assumption_check_params=chi2_assumption_check_params )
                 catcat_df=catcat_df.rename(columns={'category_a':'column_a','category_b':'column_b'})
                 catcat_df['test']=instruction[0]
                 if catcat_df.shape[0]>0:
@@ -219,10 +249,9 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 numnum_df['test']=instruction[0]
                 if numnum_df.shape[0]>0:
                     result_frames_to_concat.append(numnum_df)
-        possible_columns=['column_a','column_b','test','P-value','Correlation']
+        possible_columns=['column_a','column_b','test','P-value','Correlation','assumptions_met']
         if len(result_frames_to_concat)<1:
             return pd.DataFrame(columns=possible_columns)
         result=pd.concat(result_frames_to_concat)
         result=result[[col for col in possible_columns if col in result.columns]]
-        
         return result

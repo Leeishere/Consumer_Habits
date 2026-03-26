@@ -14,7 +14,50 @@ import gc
 
 class Chi2:
 
-    def column_makeup(self,data,x1,x2):
+    # a helper function that drops or turns pd.NA or np.nan into text 'NaN'
+    def _dropna_else_cat(self,
+                    observed_values:pd.Series|pd.DataFrame, 
+                    dropna:bool|None=None):
+        """
+        if dropna==False, np.nan and pd.NA become 'NaN' as text and can easily be computed as a subcategory 
+        such as in hyp tests
+        else np.nan and pd.NA are dropped
+        """
+        if dropna is None:
+            dropna=True
+        if dropna == True:
+            observed_values = observed_values.dropna()
+        elif dropna == False:
+            observed_values = observed_values.where(~observed_values.isna(),'NaN')
+        return observed_values
+    
+    # check chi2 assumptions 
+    def _chi2_assumptions_check(self,
+                            data:pd.Series|pd.DataFrame,
+                            _series:bool|None=None):
+        """
+        where series has to be input. if False, data should be pd.DataFrame. if True, data should be pd.Series
+        ensure 80% of data(expected) is >=5
+        and all are>=1
+        """
+        if _series is None: 
+            raise RuntimeError('_series cannot be None. Input _series==True if input data is pd.Series input, or _series==False if pd.DataFrame')
+        elif _series==True:
+            if type(data)!=pd.Series:
+                raise RuntimeError('_series==True, but found type: ',type(data))
+            elif (data.min().any()<1) or  ( (data<5).sum().sum() > (data.shape[0]*.2) ):
+                return False
+        elif _series==False:
+            if type(data)!=pd.DataFrame:
+                raise RuntimeError('_series==False. Expected: pd.DataFrame bur found type: ',type(data))
+            elif (data.min().min().any()<1) or  ( ((data<5).sum().sum()) > ((data.shape[0]*data.shape[1])*.2) ):
+                return False
+        return True
+
+    def column_makeup(self,
+                      data:pd.DataFrame,
+                      x1:str,
+                      x2:str):
         """
         accepts impute as arg1: a dataframe 
         arg2: list of column(s) to calculate the grouped count(s) and percentages of
@@ -26,13 +69,20 @@ class Chi2:
         func_df['pct_makeup']=func_df['count']/total         
         return func_df.sort_values(by=[i for i in columns]).reset_index(drop=True)
         
-    def contingency_table(self,data,x_1,x_2,kind:str='joint_probability'):
+    def contingency_table(self,
+                          data:pd.DataFrame,
+                          x_1:str,
+                          x_2:str,
+                          kind:str|None=None):
         """
         input a dataframe, column_name_1:str, column_name_2'str, and kind = 'joint_probability | 'frequency' (defaults to joint_probability)  
         returns a contingency table
         BOTTOM AND LEFT COLUMNS CONTAINING MARGINAL VALUES  
         """
-        base_quantity_table=self.column_makeup(data,x_1,x_2)
+        kind = 'joint_probability' if kind is None else kind
+        base_quantity_table=self.column_makeup(data,
+                                               x_1,
+                                               x_2)
         value_col='pct_makeup' if kind=='joint_probability' else 'count'
         contingency_table=base_quantity_table.pivot(index=x_1,columns=x_2,values=value_col).reset_index(drop=False)
         del base_quantity_table
@@ -47,11 +97,18 @@ class Chi2:
         return contingency_table
 
     #expected values
-    def frequencies_table(self,data,x_1,x_2,kind:str='joint_probability'):
+    def frequencies_table(self,
+                          data:pd.DataFrame,
+                          x_1:str,
+                          x_2:str,
+                          kind:str|None=None):
         """
         kind='frequency' for a frequency table
         """
-        base_quantity_table=self.column_makeup(data,x_1,x_2)
+        kind = 'joint_probability' if kind is None else kind
+        base_quantity_table=self.column_makeup(data,
+                                               x_1,
+                                               x_2)
         value_col='pct_makeup' if kind=='joint_probability' else 'count'
         frequencies_table=base_quantity_table.pivot(index=x_1,columns=x_2,values=value_col).reset_index(drop=False)
         del base_quantity_table
@@ -59,37 +116,78 @@ class Chi2:
         return frequencies_table
         
     ## consider adding a flag if any cell has an expected value <
-    def chi_squared_independence(self,data,x_1,x_2):     
+    def chi_squared_independence(self,
+                                 data:pd.DataFrame,
+                                 x_1:str,
+                                 x_2:str,
+                                check_assumptions:bool|None=None,
+                                dropna:bool|None=None):     
         """
         test of independence
         """
+
+        if check_assumptions is None:
+            check_assumptions = False
+            
+        if dropna is None:
+            dropna=True
+        # drop or turn pd.NA and np.nan into text: 'NaN' based on dropna bool
+        test_data   =self._dropna_else_cat(data[[x_1,x_2]], 
+                                            dropna=dropna) 
+
         try:
-            observed = self.frequencies_table(data, x_1, x_2, kind='frequency')
+            observed = self.frequencies_table(test_data, 
+                                              x_1, 
+                                              x_2, 
+                                              kind='frequency')
             expected = ( observed.sum(axis=1).to_numpy().reshape(-1,1)@observed.sum(axis=0).to_numpy().reshape(1,-1) ) / observed.sum().sum()
             chi_stat = (( (observed-expected)**2)/expected).sum().sum()
             dof      = (observed.shape[0]-1)*(observed.shape[1]-1)
             p_value  = scipy.special.chdtrc(dof,chi_stat)
+            if check_assumptions==True:
+                assumption_met = self._chi2_assumptions_check(pd.DataFrame(expected),
+                                                                _series=False)
+                return p_value, assumption_met    
             return p_value
         except:
-            obs=data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
-            sums_x_1=data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
-            sums_x_2=data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
-            dof      = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
-            obs=pd.merge(obs,sums_x_1,how='left',on=x_1)
-            obs=pd.merge(obs,sums_x_2,how='left',on=x_2)
+            obs     =test_data.groupby([x_1,x_2],as_index=False,observed=False).size().rename(columns={'size':'observed'})
+            sums_x_1=test_data.groupby(x_1,as_index=False,observed=False).size().rename(columns={'size':'x_1_totals'})
+            sums_x_2=test_data.groupby(x_2,as_index=False,observed=False).size().rename(columns={'size':'x_2_totals'})
+            dof     = (sums_x_1.shape[0]-1)*(sums_x_2.shape[0]-1)
+            obs     =pd.merge(obs,sums_x_1,how='left',on=x_1)
+            obs     =pd.merge(obs,sums_x_2,how='left',on=x_2)
             grand_total=obs['observed'].sum().sum()
             obs['expected']=(obs['x_1_totals']*obs['x_2_totals'])/grand_total
             chi_stat  =  (((obs['observed'] - obs['expected'])**2)  /  obs['expected']).sum().sum()
             p_value  = scipy.special.chdtrc(dof,chi_stat)
+            if check_assumptions==True:
+                assumption_met = self._chi2_assumptions_check(obs['expected'],
+                                                                _series=True)
+                return p_value, assumption_met  
             return p_value
 
 
-    def test_all_cat_columns_chi_independence(self,data,columns:str|list|None=None,target:str|list|None=None):
+    def test_all_cat_columns_chi_independence(self,
+                                              data:pd.DataFrame,
+                                              columns:str|list|None=None,
+                                              target:str|list|None=None,
+                                              cols_to_exclude_from_targets:str|list|None=None,
+                                              check_assumptions:bool|None=None,
+                                              assumption_check_params:dict|None=None):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         additional can be None or numeric column(s) to analyze
         if target is not None it should be a list. Only combinations that include target will be returned
         """
+
+        if check_assumptions is None:
+            check_assumptions=False
+       
+        if assumption_check_params:
+            dropna=assumption_check_params.get('dropna', True)
+        else:
+            dropna= True
+
         if columns is None:
             columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
         elif isinstance(columns,str):
@@ -99,24 +197,66 @@ class Chi2:
         else: 
             if isinstance(target,str):
                 target=[target]
+            if cols_to_exclude_from_targets is not None:
+                if isinstance(cols_to_exclude_from_targets,str):
+                    cols_to_exclude_from_targets=[cols_to_exclude_from_targets]
+                target = [targ for targ in target if targ not in cols_to_exclude_from_targets]
             columns = list( set( columns+target ) )
             combinations = [(targ, col) for targ in target for col in columns if targ != col]
-        res_dict={}
-        for combo in combinations:
-            p=self.chi_squared_independence(data,combo[0],combo[1])
-            res_dict[(combo[0],combo[1])]=[p]
+        if not combinations:            
+            return pd.DataFrame(columns=['category_a','category_b','P-value'])
+        if check_assumptions==True:
+            res_dict={'category_a':[],'category_b':[],'P-value':[],'assumptions_met':[]}
+            for combo in combinations:
+                combo_data = data[[combo[0],combo[1]]]
+                p, assumption_met =self.chi_squared_independence(combo_data,
+                                                combo[0],
+                                                combo[1],
+                                                check_assumptions=check_assumptions,
+                                                dropna=dropna)
+                res_dict['category_a'].append(combo[0])
+                res_dict['category_b'].append(combo[1])
+                res_dict['P-value'].append(p)
+                res_dict['assumptions_met'].append(assumption_met)
+        else:
+            res_dict={'category_a':[],'category_b':[],'P-value':[]}
+            for combo in combinations:
+                combo_data = data[[combo[0],combo[1]]]
+                p =self.chi_squared_independence(combo_data,
+                                                 combo[0],
+                                                 combo[1],
+                                                 check_assumptions=check_assumptions,
+                                                 dropna=dropna)
+                res_dict['category_a'].append(combo[0])
+                res_dict['category_b'].append(combo[1])
+                res_dict['P-value'].append(p)
         if len(res_dict)<1:
             return pd.DataFrame(columns=['category_a','category_b','P-value'])
-        res = pd.DataFrame(res_dict).T.reset_index(drop=False)
-        res.columns=['category_a','category_b','P-value']
+        res = pd.DataFrame(res_dict)
+        res.columns=[i for i in ['category_a','category_b','P-value','assumptions_met'] if i in res.columns]
         return res
 
     # a function that calls chi2 independence to examine and compare dataset columns
-    def categorical_column_comparison(self,data, alpha=0.05, keep_above_p:None|bool=False, categoric_columns=None, categoric_target:list|None=None):
+    def categorical_column_comparison(self,
+                                      data, 
+                                      alpha:float|None=None, 
+                                      keep_above_p:None|bool=None, 
+                                      categoric_columns:list|None=None, 
+                                      categoric_target:list|None=None,
+                                      cols_to_exclude_from_targets:str|list|None=None,
+                                      check_assumptions:bool|None=None,
+                                      assumption_check_params:dict|None=None):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         """
-        p_table=self.test_all_cat_columns_chi_independence(data,categoric_columns,categoric_target)
+        alpha = 0.05 if alpha is None else alpha
+
+        p_table=self.test_all_cat_columns_chi_independence(data,
+                                                           categoric_columns,
+                                                           categoric_target,
+                                                           cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                                           check_assumptions=check_assumptions,
+                                                           assumption_check_params=assumption_check_params)
         if keep_above_p==True:
             return p_table.loc[p_table['P-value']>=alpha].reset_index(drop=True)
         elif keep_above_p==False:
@@ -127,43 +267,80 @@ class Chi2:
 
     #test for uniformness  
     ## consider adding a flag if any cell has an expected value <
-    def chi_squared_goodness_of_fit(self,x,expected_probs=None):
-            """
-            accepts x as a panda series 
-            if expected_probs is None, a uniform distribution is used as the epxpected
-            otherwise, expected_probs should be a pd.Series() indexed or dict with the values as probs and index/key as the vriables compared to in observed
-            """
-            observed = pd.Series(x.value_counts().values,index=x.value_counts().index)
-            if expected_probs is None:
-                expected =[x.shape[0]/x.nunique()]*observed.shape[0]
-                expected = np.array(expected)
-            else:
-                probs = pd.Series(expected_probs).reindex(observed.index, fill_value=0)
-                if (probs < 0).any():
-                    raise ValueError("Expected probabilities must be non-negative")
-                expected = probs * observed.sum()
-            if (expected < 5).any():
-                raise ValueError("Chi-square assumption violated: expected counts < 5")
+    def chi_squared_goodness_of_fit(self,
+                                    x:pd.Series,
+                                    check_assumptions:bool|None=None,
+                                    dropna:bool|None=None):
+        """
+        accepts x as a panda series 
+        uniform distribution is calculated and used to test agains within the function
+        input of expected or expected probabilities is not supported
+        """
+        if check_assumptions is None:
+            check_assumptions = False
             
-            chi_stat = (( (observed-expected)**2)/expected).sum()
-            dof      = x.nunique()-1
-            return scipy.special.chdtrc(dof, chi_stat)
+        if dropna is None:
+            dropna=True
+        # drop or turn pd.NA and np.nan into text: 'NaN' based on dropna bool
+        x=self._dropna_else_cat(pd.Series(x), 
+                                dropna=dropna)        
 
-    def test_all_cat_columns_chi_good_of_fit(self,data,columns:str|list|None=None,expected_probs:list|None=None):
+        val_counts = x.value_counts()
+        observed = pd.Series(val_counts.values,index=val_counts.index)
+        
+        expected =[x.shape[0]/x.nunique()]*observed.shape[0]
+        expected = np.array(expected)
+      
+        chi_stat = (( (observed-expected)**2)/expected).sum()
+        dof      = x.nunique()-1
+        p        = scipy.special.chdtrc(dof, chi_stat)
+        if check_assumptions == True:
+            return p, self._chi2_assumptions_check(pd.Series(expected),_series=True)
+        return p
+
+    def test_all_cat_columns_chi_good_of_fit(self,
+                                             data,
+                                             columns:str|list|None=None,
+                                             cols_to_exclude_from_targets:str|list|None=None,
+                                             dropna:bool|None=None,
+                                             check_assumptions:bool|None=None):
         """
         if columns == None, this defaults to detect 'object' and 'category' dtypes and won't see 'int'
         returns a df of [col, p-value]
+        does not support input of expected or expected probabilities
         """
+        if check_assumptions is None:
+            check_assumptions=False
+
         if not columns:
-            columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
+            columns=list(data.select_dtypes(['object','category']).columns)
         elif isinstance(columns,str):
             columns=[columns]
-        res_dict={}
-        for col in columns:
-            p=self.chi_squared_goodness_of_fit(data[col],expected_probs=expected_probs)
-            res_dict[col]=[p]
-        res = pd.DataFrame(res_dict).T.reset_index(drop=False)
-        res.columns=['category','P-value']
+        if cols_to_exclude_from_targets is not None:
+            if isintance(cols_to_exclude_from_targets,str):
+                cols_to_exclude_from_targets=[cols_to_exclude_from_targets]
+            columns = [col for col in columns if col not in cols_to_exclude_from_targets]
+        if not columns:
+            return pd.DataFrame(columns=['category','P-value'])
+        if check_assumptions==True:
+            res_dict={'category':[],'P-value':[],'assumptions_met':[]}
+            for col in columns:
+                p, assumption_met =self.chi_squared_goodness_of_fit(data[col],
+                                                check_assumptions=check_assumptions,
+                                                dropna=dropna)
+                res_dict['category'].append(col)
+                res_dict['P-value'].append(p)
+                res_dict['assumptions_met'].append(assumption_met)
+        else:
+            res_dict={'category':[],'P-value':[]}
+            for col in columns:
+                p=self.chi_squared_goodness_of_fit(data[col],
+                                                check_assumptions=check_assumptions,
+                                                dropna=dropna)
+                res_dict['category'].append(col)
+                res_dict['P-value'].append(p)
+        res = pd.DataFrame(res_dict)
+        res.columns=[i for i in ['category','P-value','assumptions_met'] if i in res.columns]
         return res
 
 
@@ -172,7 +349,9 @@ class Chi2:
                         df,
                         cat_alpha_above:tuple|list=(0.05,False),
                         categoric_columns:str|list|None=None,
-                        expected_probs:list|None=None):
+                        cols_to_exclude_from_targets:str|list|None=None,
+                        dropna:bool|None=None,
+                        check_assumptions:bool|None=None):
         """
         parameters:
         df: a pandas dataframe
@@ -186,7 +365,11 @@ class Chi2:
         expected_probs can be a list of probabilites to test against. None defaults to uniform distribution
             no further documentation on expected_probs available at this time
         """
-        good_of_fit_df = self.test_all_cat_columns_chi_good_of_fit(df,columns=categoric_columns,expected_probs=expected_probs)
+        good_of_fit_df = self.test_all_cat_columns_chi_good_of_fit(df,
+                                                                   columns=categoric_columns,
+                                                                    cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                                                    dropna=dropna,
+                                                                    check_assumptions=check_assumptions)
         if cat_alpha_above[1]==False:
             return good_of_fit_df.loc[good_of_fit_df['P-value']<cat_alpha_above[0]].reset_index(drop=True)
         if cat_alpha_above[1]==True:

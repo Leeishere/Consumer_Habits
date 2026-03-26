@@ -477,6 +477,7 @@ class PlotClass:
         where sorted sorts x and hue if set to True
 
         """        
+        plt.rcdefaults()
         
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
             raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
@@ -567,7 +568,7 @@ class PlotClass:
             curr_row+=1
             available_row_start_index = 0
         plt.show()
-
+        plt.rcdefaults()
 
 
     # =====================================================================================================================================
@@ -590,7 +591,7 @@ class PlotClass:
             otherwise vertical bars and n_wide is a list or tuple where n_wide[0]=n cols on row, and n_wide[1]=ideal_max bars on row, <n_wide[2]=row_height or default is 5>
 
         """
-        
+        plt.rcdefaults()
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
             raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
         else:                       # case where plots should have vertical bars.
@@ -650,7 +651,7 @@ class PlotClass:
                     plt.grid()
             available_row_start_index = 0
         plt.show()
-
+        plt.rcdefaults()
 
     # =====================================================================================================================================
     # bivariate_numeric_numeric_snapshot
@@ -768,7 +769,7 @@ class PlotClass:
                                 ratio=4,
                                 space=0.05
         """
-        
+        plt.rcdefaults()
         if plot_type_kwargs==None: plot_type_kwargs={}
         if  linreg_kwargs==None: linreg_kwargs={}
 
@@ -811,7 +812,7 @@ class PlotClass:
             ax.set_xlabel(column_combos[index][0])
             ax.grid()
         plt.show()
-
+        plt.rcdefaults()
 
 
     # =====================================================================================================================================
@@ -838,6 +839,7 @@ class PlotClass:
                     <n_wide[2]=row_height or default is 5>
 
         """
+        plt.rcdefaults()
         columns=categorical if categorical is not None else list(data.select_dtypes('object').columns)
 
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
@@ -892,7 +894,7 @@ class PlotClass:
             curr_row+=1
             available_row_start_index = 0
         plt.show()
-
+        plt.rcdefaults()
 
     # =====================================================================================================================================
     # plot supercategories to subcategories W/ a function to map them to a figure   
@@ -1009,7 +1011,7 @@ class PlotClass:
         where supercats take one row and are included in n_rows_for_supercat_var
         row_height, cols_per_row, and y_tick_fontsize are passed from _map_subcats_supercat_to_fig()
         """
-
+        plt.rcdefaults()
         total_rows = sum(i[0] for i in figure_map)
         n_cols = len(figure_map[0][3])
         fig = plt.figure(figsize=(20,(row_height*total_rows)+2))
@@ -1050,7 +1052,7 @@ class PlotClass:
             # increment the start spot for the next supercat column
             supercat_header_start_row+=supercat_map[0]
         plt.show()
-
+        plt.rcdefaults()
 
 
 

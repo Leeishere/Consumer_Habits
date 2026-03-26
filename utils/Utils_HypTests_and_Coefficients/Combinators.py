@@ -27,7 +27,7 @@ def calculate_num_permutations(total_population, selection_size):
     factorial_total_population=calculate_factorial(total_population)
     total_population_minus_selection_size=total_population - selection_size
     if total_population_minus_selection_size<0:
-        raise ValueError("Total population size can't be greater than selection size")
+        raise ValueError("Selection size can't be greater than population size.")
     factorial_total_population_minus_selection_size=calculate_factorial(total_population_minus_selection_size)
     return int(round(factorial_total_population / factorial_total_population_minus_selection_size,0))
 
@@ -39,6 +39,6 @@ def calculate_num_combinations(total_population, selection_size):
     factorial_selection_size=calculate_factorial(selection_size)
     total_population_minus_selection_size=total_population - selection_size
     if total_population_minus_selection_size<0:
-        raise ValueError("Total population size can't be greater than selection size")
+        raise ValueError("Selection size can't be greater than population size.")
     factorial_total_population_minus_selection_size=calculate_factorial(total_population_minus_selection_size)
     return int(round(factorial_total_population / ( factorial_selection_size * factorial_total_population_minus_selection_size ),0))

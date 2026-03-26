@@ -1,5 +1,7 @@
 /utils/Notes/
 .venv/
+FunctionFlow.py
+function_flow_generator.py
 Consumer_Habits.ipynb
 GitIgnoredStuff/
 /coffee
@@ -9,3 +11,5 @@ GitIgnoredStuff/
 /TimeTests.ipynb
 /AnalysisClassGamePlan.ipynb
 /ReviewsToDo.ipynb
+
+ML_prototyping.ipynb

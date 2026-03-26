@@ -4,6 +4,7 @@ import warnings
 import itertools
 from itertools import combinations
 import numpy as np
+import inspect
 
 #these use f.survival_function or t.survival_function) to calculate the p value
 # scipy.stats.f.sf(f_score,dfn,dfd) where dfn is the numerator--mean_square(ie variance) and dfd is denominator-->error# this returns a p value for the f stat
@@ -15,10 +16,696 @@ class ANOVA:
     def __init(self):
         self.two_way_interaction_columns=None
         self.two_way_interaction_sizes=None
-        self.one_way_df_ANOVA_overview=None
-        self.one_way_kruskal_wallis_df_overview=None
 
     # =========================================================================================================================================================================
+    # 5 functions that check assumptions for ONE-WAY-ANOVA
+    # 4 function that check assumptions for Kruskal Wallis tests
+    # they can be called with parameter retrieve_meta==True, to produce in depth meta results 
+    # otherwise they return True/False
+    # anova_assumption_checks() wraps multiple helper functions
+    # kruskal_wallis_assumptions() wraps multiple helper as well
+    # they are called/located in test_all_cat_num_kruskal_wallis() and test_all_cat_num_ANOVA() 
+    # scipy.stats.shapiro() is called in _anova_check_normality() and tests for normality, but is exclusive to scipy.stats
+    # scipy.stats.ks_2samp() is called in _kruskal_assumptions_strict() and kruskal_assumptions_meta(), it is exclusive to scipy.stats
+    # scipy.stats.levene() is supported in libraries such as cupy, jax, pytorch
+
+    
+    # 1) Group size check
+    def _anova_assumptions_check_group_sizes(self,
+                                             group, 
+                                             y, 
+                                             min_n:int|None=None, 
+                                             retrieve_meta:bool|None=None,
+                                             dropna:bool|None=None):
+
+        """
+        Evaluate whether each group has sufficient sample size.
+        Parameters
+        ----------
+        group : array-like (pd.Series)
+            Categorical grouping variable.
+        y : array-like (pd.Series)
+            Numeric dependent variable.
+        min_n : int, default=5
+            Minimum required observations per group.
+
+        Returns
+        -------
+        T/F Bool
+
+        Notes
+        -----
+        Small group sizes reduce statistical power and can undermine
+        ANOVA reliability. Recommended minimum is typically 5–10 per group.
+        """
+        if dropna is None:
+            dropna=True
+        if retrieve_meta is None:
+            retrieve_meta=False
+        if min_n is None:
+            min_n=5
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            return False
+        
+        dropna=False
+
+        counts = df.groupby('group',dropna=dropna)['y'].size()
+        if retrieve_meta == True:
+            return counts.rename('count_obs')
+        result =bool((counts >= min_n).all())
+        return result  
+
+    # 2) Normality per group (Shapiro-Wilk)
+    def _anova_check_normality(self,
+                               group, 
+                               y, 
+                               alpha:float|None=None,
+                               retrieve_meta:bool|None=None,
+                               dropna:bool|None=None):
+
+        """
+        Test normality of the dependent variable within each group
+        using the Shapiro-Wilk test available strictly from scipy.stats via pandas or numpy and possible not other
+
+        Parameters
+        ----------
+        group : array-like (pd.Series)
+            Categorical grouping variable.
+        y : array-like (pd.Series)
+            Numeric dependent variable.
+        alpha : float, default=0.05
+            Significance level for hypothesis testing.
+
+        Returns
+        -------
+        T/F Bool
+
+        Notes
+        -----
+        The null hypothesis is that the data are normally distributed.
+        ANOVA assumes approximate normality within groups. This test
+        may be sensitive to large sample sizes.
+        """
+
+        if dropna==None:
+            dropna=True
+        if retrieve_meta==None:
+            retrieve_meta=False
+        if alpha==None:
+            alpha=0.05
+            
+        if dropna==True:
+            df = pd.DataFrame({'group': group, 'y': y}).dropna()
+        else:
+            df = pd.DataFrame({'group': group, 'y': y})
+        dropna=False
+
+        if retrieve_meta == True:
+            def shapiro_test(vals):
+                vals=vals.dropna()
+                if len(vals) < 3:
+                    return pd.Series({
+                        'stat': np.nan,
+                        'p': np.nan,
+                        'normal': False,
+                        'note': 'n<3'
+                    })
+                stat, p = scipy.stats.shapiro(vals)
+                return  pd.Series({
+                        'stat': stat,
+                        'p': p,
+                        'normal': p>alpha,
+                        'note': 'n>=3'
+                    })
+
+            return df.groupby('group',dropna=dropna)['y'].apply(shapiro_test).rename('is_normal')
+        def shapiro_test(vals):
+                vals=vals.dropna()
+                if len(vals) < 3:
+                    return False
+                stat, p = scipy.stats.shapiro(vals)
+                return  p > alpha  
+        return (df.groupby('group',dropna=dropna)['y'].apply(shapiro_test)).all() 
+    
+    # 3) Homogeneity of variance (Levene – more robust than Bartlett)
+    def _anova_check_homogeneity(self,
+                                 group, 
+                                 y, 
+                                 alpha:float|None=None, 
+                                 center:str|None=None, 
+                                 retrieve_meta:bool|None=None,
+                                 dropna:bool|None=None):
+        """
+        Test equality of variances across groups using Levene's test.
+
+        Parameters
+        ----------
+        group : array-like (pd.Series)
+            Categorical grouping variable.
+        y : array-like (pd.Series)
+            Numeric dependent variable.
+        alpha : float, default=0.05
+            Significance level.
+        center : {'mean', 'median', 'trimmed'}, default='median'
+            Method for centering in Levene's test. 'median' is most robust.
+
+        Returns
+        -------
+        T/F bool
+
+        Notes
+        -----
+        The null hypothesis is equal variances across groups.
+        Violation suggests using Welch’s ANOVA instead of standard ANOVA.
+        """
+        if dropna is None:
+            dropna=True
+        if alpha is None:
+            alpha=0.05
+        if center is None: 
+            center='median' 
+        if retrieve_meta is None:
+            retrieve_meta=False
+            
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            return False
+        
+        dropna=False
+
+        grouped = [vals.values for _, vals in df.groupby('group',dropna=dropna)['y']]
+
+        stat, p = scipy.stats.levene(*grouped, center=center)
+        meta = {
+            'stat': stat,
+            'p': p,
+            'equal_variance': p > alpha,
+            'method': f'Levene (center={center})'
+        }
+
+        if retrieve_meta == True:
+            return meta
+        return meta['equal_variance']
+
+
+    # 4) Outlier detection (IQR method) + optional removal
+    def _anova_detect_outliers(self,
+                               group, 
+                               y, 
+                               iqr_multiplier:float|None=None, 
+                               retrieve_meta:bool|None=None,
+                               dropna:bool|None=None):
+        """
+        Detect (and optionally remove) outliers within each group using the IQR method.
+
+        Parameters
+        ----------
+        group : array-like (pd.Series)
+            Categorical grouping variable.
+        y : array-like (pd.Series)
+            Numeric dependent variable.
+    iqr_multiplier : float, default=1.5
+            Multiplier for IQR to define outlier thresholds.
+
+        Returns
+        -------
+        a df w removed outliers
+        -----
+        Outliers are defined as values outside:
+            [Q1 - k*IQR, Q3 + k*IQR]
+        where k = iqr_multiplier.
+        Outliers can strongly influence ANOVA results.
+        """
+        if dropna is None:
+            dropna=True
+        if iqr_multiplier is None:
+            iqr_multiplier=1.5
+        if retrieve_meta is None:
+            retrieve_meta=False
+            
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            return False
+        
+        dropna=False
+
+        df['is_outlier'] = False
+
+        q1 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.25))
+        q3 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.75))
+        iqr = q3 - q1
+        lower = q1 - iqr_multiplier * iqr
+        upper = q3 + iqr_multiplier * iqr
+
+        df['is_outlier'] = (df['y'] < lower) | (df['y'] > upper)
+
+        if retrieve_meta == True:
+            return df.groupby('group',dropna=dropna)['is_outlier'].sum().rename('count_outliers')
+
+        return df.loc[~df['is_outlier']].drop(columns='is_outlier')
+
+
+    # 5) Wrapper function
+    def anova_assumption_checks(self,
+                                group, 
+                                y, 
+                                retrieve_meta:bool|None=None,
+                                normality_alpha:bool|None=None, 
+                                homogeneity_alpha:bool|None=None,
+                                min_n:int|None=None,
+                                iqr_multiplier:float|None=None,
+                                dropna:bool|None=None):
+        """
+        Run a full suite of ANOVA assumption checks.
+
+        Parameters
+        ----------
+        group : array-like (pd.Series)
+            Categorical grouping variable.
+        y : array-like (pd.Series)
+            Numeric dependent variable.
+        alpha : float, default=0.05
+            Significance level for statistical tests.
+        min_n : int, default=5
+            Minimum required observations per group.
+        remove_outliers : bool, default=False
+            Whether to remove outliers before running tests.
+        iqr_multiplier : float, default=1.5
+            IQR multiplier for outlier detection.
+
+        Returns
+        -------
+        bool if retrieve_meta==False
+        esle df w meta
+
+        Notes
+        -----
+        This function consolidates key ANOVA assumptions:
+        - Adequate group sizes
+        - Within-group normality
+        - Homogeneity of variances
+        - Outlier presence
+
+        Use results to decide whether standard ANOVA is appropriate
+        or if alternatives (e.g., Welch ANOVA, Kruskal-Wallis) are needed.
+        """
+        if retrieve_meta is None:
+            retrieve_meta=True
+        if normality_alpha is None:
+            normality_alpha=0.02 
+        if homogeneity_alpha is None:
+            homogeneity_alpha=0.05
+        if min_n is None:
+            min_n=5
+        if iqr_multiplier is None:
+            iqr_multiplier=2
+        if dropna is None:
+            dropna=True
+            
+        # use pandas data frame in case of numpy array input to ensure NaN handling is consistent
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            return False
+        
+        #create panda Series
+        group, y = df['group'], df['y']
+        del df
+        # avoid unnecessary compute
+        dropna=False
+
+        if retrieve_meta == True:
+            is_outlier = self._anova_detect_outliers(group, 
+                                                    y,
+                                                    iqr_multiplier=iqr_multiplier, 
+                                                    retrieve_meta=True,
+                                                    dropna=dropna)
+            group_sizes = self._anova_assumptions_check_group_sizes(group, 
+                                                        y,
+                                                        min_n=min_n, 
+                                                        retrieve_meta=True,
+                                                    dropna=dropna)
+            result_df=pd.merge(is_outlier,
+                            group_sizes,
+                            how='inner',
+                            right_index=True,
+                            left_index=True)
+            is_normal = self._anova_check_normality(group, 
+                                                    y, 
+                                                    alpha=normality_alpha, 
+                                                    retrieve_meta=True,
+                                                    dropna=dropna)
+            result_df=pd.merge(result_df,
+                            is_normal,
+                            how='inner',
+                            right_index=True,
+                            left_index=True)
+            equal_varaice_between_groups = self._anova_check_homogeneity(group, 
+                                                                        y, 
+                                                                        alpha=homogeneity_alpha, 
+                                                                        retrieve_meta=True,
+                                                                        dropna=dropna)
+            return equal_varaice_between_groups, result_df[['is_normal','count_outliers',  'count_obs']]
+
+        # Step 1: outliers (optionally clean first)
+        outlier_result = self._anova_detect_outliers(group, y,
+                                                    iqr_multiplier=iqr_multiplier,
+                                                    dropna=dropna)
+
+        df = outlier_result
+
+        result_list = [1,1,1]
+        # Step 2: checks
+        result_list[0] = self._anova_assumptions_check_group_sizes(df['group'], 
+                                                    df['y'], 
+                                                    min_n=min_n,
+                                                    dropna=dropna)
+        result_list[1] = self._anova_check_normality(df['group'], 
+                                                    df['y'], 
+                                                    alpha=normality_alpha,
+                                                    dropna=dropna)
+        result_list[2] = self._anova_check_homogeneity(df['group'], 
+                                                    df['y'], 
+                                                    alpha=homogeneity_alpha,
+                                                    dropna=dropna)
+
+        return all(result_list)
+    
+
+    def _kruskal_assumptions_pseudo(self, 
+                                    y,
+                                    max_global_ties_ratio:float|None=None,
+                                    dropna:bool|None=None,
+                                    retrieve_meta:bool=None):
+        """
+        y : array-like (pd.Series)
+                    Numeric dependent variable
+        
+        returns
+        -------
+        bool if retrieve_meta == False: (ties_ratio<=max_global_ties_ratio)
+        else ties_ratio
+
+        What it tests:
+                Without the equal-shape assumption ( test of median ), a significant result means:
+            At least one group differs in distribution
+                That difference could come from:  location shifts, variance differences, skewness, tail behavior
+            Conover, W. J. (1999). Practical Nonparametric Statistics (3rd ed.). John Wiley & Sons.
+            Hollander, M., Wolfe, D. A., & Chicken, E. (2013). Nonparametric Statistical Methods (3rd ed.). John Wiley & Sons.
+            Zar, J. H. (2010). Biostatistical Analysis (5th ed.). Pearson.
+        """
+
+
+
+        if retrieve_meta==None:
+            retrieve_meta=False 
+        if max_global_ties_ratio==None:
+            max_global_ties_ratio=0.5
+        if dropna==None:
+            dropna=True
+
+        ties_ratio = y.value_counts(normalize=True,dropna=dropna).max()
+        if retrieve_meta==True:
+            return ties_ratio
+        return "Psuedo" if ties_ratio < max_global_ties_ratio else False
+
+
+
+    def _kruskal_assumptions_strict(self,
+                        group, 
+                        y, 
+                        levene_alpha:float|None=None,
+                        ks_alpha:float|None=None,
+                        dropna:bool|None=None,
+                        return_pseudo:bool|None=None,
+                        pseudo_test_max_global_ties_ratio:float|None=None):
+        """
+        where return_pseudo returns "Pseudo-Ratio: "+ ratio if the test of median fails. 
+        Without the equal-shape assumption ( test of median ), a significant result means:
+            At least one group differs in distribution
+                That difference could come from:  location shifts, variance differences, skewness, tail behavior
+            Conover, W. J. (1999). Practical Nonparametric Statistics (3rd ed.). John Wiley & Sons.
+            Hollander, M., Wolfe, D. A., & Chicken, E. (2013). Nonparametric Statistical Methods (3rd ed.). John Wiley & Sons.
+            Zar, J. H. (2010). Biostatistical Analysis (5th ed.). Pearson.
+        Because rank-based tests assume continuous data and ties reduce rank resolution and test power, 
+        we monitor the proportion of repeated values. While no formal cutoff exists, high tie concentration indicates 
+        reduced sensitivity and motivates alternative methods. 
+            assumptions parameter should be set w rule of thumb ties_ratio>.5 bad, >.7 raise caution. 
+            if check_assumptions==True: default is assumption_check_params={'max_global_ties_ratio' : 0.5}
+            ELSE: """
+
+        if levene_alpha is None:
+            levene_alpha = 0.05
+        if ks_alpha is None:
+            ks_alpha = 0.05
+        if dropna is None:
+            dropna = True
+        if return_pseudo is None:
+            return_pseudo=False
+        if pseudo_test_max_global_ties_ratio is None:
+            pseudo_test_max_global_ties_ratio = 0.5
+
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            return False
+
+        keys = df['group'].unique()
+        dropna = False
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # --- 1. spread similarity (Levene) ---
+            groups = [vals.values  for _, vals in df.groupby('group',dropna=dropna)['y']]
+            if len(groups)<2:
+                return False
+            if any([len(i)<3 for i in groups]):
+                if return_pseudo==True:
+                    return self._kruskal_assumptions_pseudo(df['y'],
+                                                                dropna=dropna,
+                                                                max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+                return False
+            _, levene_p = scipy.stats.levene(*groups, center='median')
+            if levene_p < levene_alpha:
+                if return_pseudo==True:
+                    return self._kruskal_assumptions_pseudo(df['y'],
+                                                                dropna=dropna,
+                                                                max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+                return False
+            
+            # --- 2. shape similarity (pairwise KS) ---
+            for i in range(len(keys)):  
+                for j in range(i + 1, len(keys)):  # ensures every combo is tested
+                    g1 = df.loc[df['group'] == keys[i], 'y']
+                    g2 = df.loc[df['group'] == keys[j], 'y']
+                    if (g1.empty or g2.empty):
+                        continue
+                    _, p = scipy.stats.ks_2samp(g1, g2)
+                    if p < ks_alpha:
+                        if return_pseudo==True:
+                            return self._kruskal_assumptions_pseudo(df['y'],
+                                                                        dropna=dropna,
+                                                                        max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+                        return False  # distributions differ → not just medians
+            """
+            if w:
+                print(w[-1].message)     
+            """       
+        return True
+
+
+
+
+    def _kruskal_assumptions_meta(self,
+                                        group, 
+                                        y,
+                                        dropna:bool|None=None,
+                                        jupyter_output:bool|None=None):
+        """
+        returns meta as a dict
+        if jupyter_ouput==True: 
+            returns:
+                print(f"x={group.name}, y={y.name}")
+                print('kruskal: ',meta_dict['kruskal'])
+                print('levene: ',meta_dict['levene'])
+                display(round(meta_dict['summary'],6))
+                display(round(meta_dict['ks_pairwise'],6))
+        """
+
+        if dropna is None:
+            dropna = True
+        if jupyter_output is None:
+            jupyter_output=False
+
+        df = pd.DataFrame({'group': group, 'y': y})
+
+        if dropna:
+            df = df.dropna()
+        else:
+            df = df.dropna(subset=['y'])
+            df['group'] = df['group'].where(~df['group'].isna(), 'NaN')
+
+        if df.empty:
+            raise ValueError('No valid observations available for Kruskal-Wallis checks.')
+
+        dropna = False
+        keys = df['group'].unique()
+
+        summary = (
+            df.groupby('group', dropna=dropna)['y']
+            .agg(
+                n='size',
+                median='median',
+                mean='mean',
+                std='std',
+                iqr=lambda x: np.subtract(*np.percentile(x, [75, 25])),
+                skew='skew'
+            )
+        )
+
+        # --- variance equality (robust) ---
+        groups = [g['y'].values for _, g in df.groupby('group',dropna=dropna)]
+        levene_stat, levene_p = scipy.stats.levene(*groups, center='median')
+
+        # --- distribution equality (stronger check) ---
+        # pairwise KS tests
+        ks_results = []
+        for i in range(len(keys)):
+            for j in range(i+1, len(keys)):
+                g1 = df.loc[df['group'] == keys[i], 'y']
+                g2 = df.loc[df['group'] == keys[j], 'y']
+                if g1.empty or g2.empty:
+                    continue
+                stat, p = scipy.stats.ks_2samp(g1, g2)
+                ks_results.append((keys[i], keys[j], stat, p))
+
+        ks_df = pd.DataFrame(ks_results, columns=['g1','g2','ks_stat','p']) if ks_results else pd.DataFrame(columns=['g1','g2','ks_stat','p'])
+
+        # --- kruskal-wallis ---
+        kw_stat, kw_p = scipy.stats.kruskal(*groups)
+
+        meta_dict =  {
+            'summary': summary,
+            'levene': {'stat': levene_stat, 'p': levene_p},
+            'ks_pairwise': ks_df,
+            'kruskal': {'stat': kw_stat, 'p': kw_p}
+        }
+        if jupyter_output==True:            
+                print(f"x={group.name}, y={y.name}")
+                print('kruskal: ',meta_dict['kruskal'])
+                print('levene: ',meta_dict['levene'])
+                display(round(meta_dict['summary'],6))
+                display(round(meta_dict['ks_pairwise'],6))
+        return meta_dict
+    
+    def kruskal_wallis_assumptions(self,
+                        group, 
+                        y, 
+                        levene_alpha:float|None=None,
+                        ks_alpha:float|None=None,
+                        dropna:bool|None=None,
+                        retrieve_meta:bool|None=None,
+                        return_pseudo:bool|None=None,
+                        pseudo_test_max_global_ties_ratio:float|None=None,
+                        full_pseudo:bool|None=None,
+                        jupyter_output:bool|None=None):
+        """
+        if retrieve_meta==False
+            calls _kruskal_assumptions_strict() w optional parameter return_pseudo to call  _kruskal_assumptions_pseudo() only if assumptions arent met
+            _kruskal_assumptions_pseudo() is much less computationaly expensive and can be called on it's own: full_pseudo==True
+            in either case, it returns 'Pseudo' instead of a True or False bool
+        else
+            calls _kruskal_assumptions_meta()
+        
+        more on return_pseudo:
+            where return_pseudo returns "Pseudo-Ratio: "+ ratio if the test of median fails. 
+            Without the equal-shape assumption ( test of median ), a significant result means:
+                At least one group differs in distribution
+                    That difference could come from:  location shifts, variance differences, skewness, tail behavior
+                Conover, W. J. (1999). Practical Nonparametric Statistics (3rd ed.). John Wiley & Sons.
+                Hollander, M., Wolfe, D. A., & Chicken, E. (2013). Nonparametric Statistical Methods (3rd ed.). John Wiley & Sons.
+                Zar, J. H. (2010). Biostatistical Analysis (5th ed.). Pearson.
+            Because rank-based tests assume continuous data and ties reduce rank resolution and test power, 
+            we monitor the proportion of repeated values. While no formal cutoff exists, high tie concentration indicates 
+            reduced sensitivity and motivates alternative methods. 
+                assumptions parameter should be set w rule of thumb ties_ratio>.5 bad, >.7 raise caution. 
+                if check_assumptions==True: default is assumption_check_params={'max_global_ties_ratio' : 0.5}
+        
+        """
+
+        if levene_alpha is None:
+            levene_alpha = 0.05
+        if ks_alpha is None:
+            ks_alpha = 0.05
+        if dropna is None:
+            dropna = True
+        if retrieve_meta is None:
+            retrieve_meta = True
+        if full_pseudo is None:
+            full_pseudo=False
+        if jupyter_output is None:
+            jupyter_output = False
+
+        if retrieve_meta==False:
+
+            if full_pseudo==True:
+                return self._kruskal_assumptions_pseudo(y,
+                                            max_global_ties_ratio=pseudo_test_max_global_ties_ratio,
+                                            dropna=dropna,
+                                            retrieve_meta=False)
+            return self._kruskal_assumptions_strict(group, 
+                                            y, 
+                                            levene_alpha=levene_alpha,
+                                            ks_alpha=ks_alpha,
+                                            dropna=dropna,
+                                            return_pseudo=return_pseudo,
+                                            pseudo_test_max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+        return self._kruskal_assumptions_meta(group, 
+                                                        y,
+                                                        dropna=dropna,
+                                                        jupyter_output = jupyter_output)
+    
+
 
     # ========================================================================================================================================================================= 
 
@@ -26,13 +713,23 @@ class ANOVA:
     # for uniform 2-way-ANOVA interaction sizes
     # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.sample.html 
     
-    def create_uniform_interactions(self, xx_y_prep_df,min_size=5, override_min=False, ntile=None, stratify:None|pd.Series=None):
+    def create_uniform_interaction_sizes(self, 
+                                    three_col_XX_y:pd.DataFrame,
+                                    min_size:None|int, 
+                                    override_min:None|bool=None, 
+                                    ntile:None|int=None, 
+                                    stratify:None|pd.Series=None):
         """
         override_min will sample with replacement from small datasets
-        if ntile is not none, the interseciton size will be the ntile of sizes that are greater than min, otherwise smallest acceptable interaciton's size will be used
+        if ntile is not none, the interseciton size will be the ntile of sizes that are greater than min, 
+            otherwise smallest acceptable interaciton's size will be used
+                use: n_rows=np.percentile(sizes,[*ntile*])[0].astype(int)
+                    where ntile is an int in range [0,100]
         where stratify can be None, and sampling will be random, or a pd.series of the binned y variable with an index that aligns with the xx_y_prep_df pd.dataframe index
         """
-        three_col_XX_y=pd.DataFrame(xx_y_prep_df.copy())
+
+        min_size = 5 if min_size is None else min_size
+        override_min = False if override_min is None else override_min
         cols=three_col_XX_y.columns
         x1 = cols[0]
         x2 = cols[1]
@@ -44,7 +741,10 @@ class ANOVA:
             except:
                 if 'binned_y' not in (x1,x2,y):
                     binned_y = 'binned_y'
-                else: binned_y = 'temp_name__t_r_e_e'
+                else: 
+                    binned_y = 'binned_y-'
+                    while binned_y in (x1,x2,y):
+                        binned_y = binned_y + "I"
         #unique values for interactions
         x1_vars=three_col_XX_y[x1].unique()
         x2_vars=three_col_XX_y[x2].unique()
@@ -57,7 +757,7 @@ class ANOVA:
         too_small_interactions=list(grouped.loc[(grouped['size']>0)&(grouped['size']<min_size)][[x1,x2]].itertuples(index=False,name=None))
         non_interactions=list(grouped.loc[(grouped['size']<=0)][[x1,x2]].itertuples(index=False,name=None))
 
-        # concatinate a new dataframe with uniform interaction sizes
+        # concatenate a new dataframe with uniform interaction sizes
         result=[]
         if ntile is not None:
             n_rows=np.percentile(sizes,[ntile])[0].astype(int)
@@ -109,19 +809,19 @@ class ANOVA:
         self.two_way_interaction_columns={'interactions':interactions,'insufficient':too_small_interactions,'non_interactive': non_interactions }
         return pd.concat(result)
        
-    # =========================================================================================================================================================================
-    #following is a 2-way ANOVA; future: implement Aligned Rank Transform (ART) and Permutation (randomization) ANOVA for non parametric
-    # =========================================================================================================================================================================     
-            
+   
     # 2 way ANOVA
-    # uses typ2 1 sum or sqares,, the statsmodels implementation: two_way_ANOVA_for_un_balanced_data() adjusts for type 1,2,or 3 and is not optimized for GPU
-
-    def two_way_ANOVA(self,three_col_XX_y,unbalanced_interaction_sizes=True,verbose=True):
+    
+    def two_way_ANOVA(self,
+                      three_col_XX_y:pd.DataFrame,
+                      unbalanced_interaction_sizes:None|bool=None,
+                      verbose:None|bool=None):
         """
         Where col in positions [:2] are catigorical and [2] is numeric
         data is preprocessed to have uniform observations counts across interaction
         """
-        three_col_XX_y=pd.DataFrame(three_col_XX_y.copy())  #ensure CuDF if applicable. A check would be better, but this prototypes well
+        unbalanced_interaction_sizes = True if unbalanced_interaction_sizes is None else unbalanced_interaction_sizes
+        verbose = True if verbose is None else verbose
         cols=three_col_XX_y.columns
         a = cols[0]
         b = cols[1]
@@ -217,13 +917,21 @@ class ANOVA:
 
     # A function that pairs combos based on inputs
     #it is used in kruskal_wallis and anova funtions that multiple many p-vlues based on the the combos
-    def determine_column_combinations(self,data, numeric_columns:str|list|None=None,categoric_columns:str|list|None=None,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
+    def determine_column_combinations(self,
+                                      data:pd.DataFrame, 
+                                      numeric_columns:str|list|None=None,
+                                      categoric_columns:str|list|None=None,
+                                      categoric_target:str|list|None=None,
+                                      numeric_target:str|list|None=None,
+                                      cols_to_exclude_from_targets:str|list|None=None):
     
         """
         where categoric_columns and numeric_columns default to auto_detect if not [] or column(s) entered as str or list
         categoric_target and numeric_target can both be entered as str or list(s) of strings
         in case wehn neither catigoric_target or numeric_target is None:
             P-Value is eveluated when one OR the other is present in any combination, not one AND the the other
+        cols_to_exclude_from_targets do override columns passed in as targets, 
+            [IN THE CASE OF AnalyzeDataset MODULE, THAT MEANS RESULTS FOR EXCLUDED COLUMNS SHOULD ALREADY BE STORED AS CLASS ATRIBUTES]
         """
 
         # DETERMINE THE CATEGORIC COLUMNS
@@ -252,7 +960,13 @@ class ANOVA:
         if numeric_target is not None:
             numeric_columns = list( set( numeric_columns + numeric_target ) )
 
-
+        # filter columns to exclude from targets as per parameter
+        if (cols_to_exclude_from_targets is not None):
+            if isinstance(cols_to_exclude_from_targets,str):
+                cols_to_exclude_from_targets = [cols_to_exclude_from_targets]
+            categoric_target = [targ for targ in categoric_target if targ not in cols_to_exclude_from_targets]
+            numeric_target = [targ for targ in numeric_target if targ not in cols_to_exclude_from_targets]
+            
         #conditional statements to consider target columns when defined or every valid combinanation otehrwise
         # no targets
         if (categoric_target is None) and (numeric_target is None):
@@ -276,7 +990,8 @@ class ANOVA:
     # one way tests: ANOVA and Kruskal Wallis
     # =========================================================================================================================================================================
     # ANOVA
-    def one_way_ANOVA(self,two_col_df_x_y):
+    def one_way_ANOVA(self,
+                      two_col_df_x_y:pd.DataFrame):
         """
         Where col in position [0] is catigorical and [1] is numeric
         returns np.nan when there arent enough observations or when there is no within-group variance
@@ -324,23 +1039,73 @@ class ANOVA:
 
         return p_value
 
-    def test_all_cat_num_ANOVA(self,data, numeric_columns:str|list|None=None,categoric_columns:str|list|None=None,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
+    def test_all_cat_num_ANOVA(self,
+                               data:pd.DataFrame, 
+                               numeric_columns:str|list|None=None,
+                               categoric_columns:str|list|None=None,
+                               categoric_target:str|list|None=None,
+                               numeric_target:str|list|None=None,
+                               cols_to_exclude_from_targets:str|list|None=None,
+                               check_assumptions:bool|None=None,
+                               assumption_check_params:dict|None=None):
         """
         where categoric_columns and numeric_columns default to auto_detect if not None or column(s) entered as str or list
         categoric_target and numeric_target can both be entered as str or list(s) of strings
-        in case wehn neither catigoric_target or numeric_target is None:
-            P-Value is eveluated when one OR the other is present in any combination, not one AND the the other
+        in case when neither categoric_target or numeric_target is None:
+            P-Value is evaluated when one OR the other is present in any combination, not one AND the the other
+        cols_to_exclude_from_targets do override columns passed in as targets, 
+            [IN THE CASE OF AnalyzeDataset MODULE, THAT MEANS RESULTS FOR EXCLUDED COLUMNS SHOULD ALREADY BE STORED AS CLASS ATTRIBUTES]
         """
-        combinations = self.determine_column_combinations(data, numeric_columns=numeric_columns,categoric_columns=categoric_columns,categoric_target=categoric_target,numeric_target=numeric_target)
+        if assumption_check_params is None:
+            assumption_check_params = {}
+        if check_assumptions is None:
+            check_assumptions=False
+        if check_assumptions==True:
+            if assumption_check_params:
+                normality_alpha=assumption_check_params.get('normality_alpha', 0.02)
+                homogeneity_alpha=assumption_check_params.get('homogeneity_alpha', 0.05)
+                min_n=assumption_check_params.get('min_n', 5) # min obs per group
+                iqr_multiplier=assumption_check_params.get('iqr_multiplier', 2)
+                dropna=assumption_check_params.get('dropna', True)
+            else:
+                normality_alpha= 0.02
+                homogeneity_alpha= 0.02
+                min_n= 5
+                iqr_multiplier= 2
+                dropna= True
+        if assumption_check_params:
+                dropna=assumption_check_params.get('dropna', True)
+        else:
+            dropna= True
+
+        combinations = self.determine_column_combinations(data, 
+                                                          numeric_columns=numeric_columns,
+                                                          categoric_columns=categoric_columns,
+                                                          categoric_target=categoric_target,
+                                                          numeric_target=numeric_target,
+                                                          cols_to_exclude_from_targets=cols_to_exclude_from_targets)
         if len(combinations)<1:
             return pd.DataFrame(columns=['category','numeric','P-value'])
-        res_dict={}
+        res_dict={'category':[],'numeric':[],'P-value':[]}
+        if check_assumptions==True:
+            res_dict['assumptions_met']=[]
         for combo in combinations:
             p=self.one_way_ANOVA(data[[*combo]])
-            res_dict[(combo[0],combo[1])]=[p]
-        res = pd.DataFrame(res_dict).T.reset_index(drop=False)
-        res.columns=['category','numeric','P-value']
-        self.one_way_df_ANOVA_overview=res
+            res_dict['category'].append(combo[0])
+            res_dict['numeric'].append(combo[1])
+            res_dict['P-value'].append(p)
+            if check_assumptions==True:
+                anova_assumptions_met = self.anova_assumption_checks(data[combo[0]],
+                                                                      data[combo[1]],
+                                                                      retrieve_meta=False,
+                                                                      normality_alpha=normality_alpha, 
+                                                                      homogeneity_alpha=homogeneity_alpha,
+                                                                      min_n=min_n,
+                                                                      iqr_multiplier=iqr_multiplier,
+                                                                      dropna=dropna)
+                res_dict['assumptions_met'].append(anova_assumptions_met)
+        res = pd.DataFrame(res_dict)
+        res.columns=[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]
         return res
 
     # =========================================================================================================================================================================
@@ -351,7 +1116,8 @@ class ANOVA:
     # ========================================================================================================================================================================= 
     
     # Kruskal Wallis
-    def one_way_kruskal_wallis(self,two_col_cat_num_df):
+    def one_way_kruskal_wallis(self,
+                               two_col_cat_num_df:pd.DataFrame):
         """
         Where col in positions [0] is catigorical and [1] is numeric
         """
@@ -375,30 +1141,96 @@ class ANOVA:
         p_value = scipy.stats.chi2.sf(h_statistic, dof)
         return p_value
     
-    def test_all_cat_num_kruskal_wallis(self,data, numeric_columns:str|list|None=None,categoric_columns:str|list|None=None,categoric_target:str|list|None=None,numeric_target:str|list|None=None):
+    def test_all_cat_num_kruskal_wallis(self,
+                                        data:pd.DataFrame, 
+                                        numeric_columns:str|list|None=None,
+                                        categoric_columns:str|list|None=None,
+                                        categoric_target:str|list|None=None,
+                                        numeric_target:str|list|None=None,
+                                        cols_to_exclude_from_targets:str|list|None=None,
+                                        check_assumptions:bool|None=None,
+                                        assumption_check_params:dict|None=None):
         """
         where categoric_columns and numeric_columns default to auto_detect if not None or column(s) entered as str or list
         categoric_target and numeric_target can both be entered as str or list(s) of strings
         in case wehn neither catigoric_target or numeric_target is None:
             P-Value is eveluated when one OR the other is present in any combination, not one AND the the other
+        cols_to_exclude_from_targets do override columns passed in as targets, 
+            [IN THE CASE OF AnalyzeDataset MODULE, THAT MEANS RESULTS FOR EXCLUDED COLUMNS SHOULD ALREADY BE STORED AS CLASS ATRIBUTES]
+                
         """
-        combinations = self.determine_column_combinations(data, numeric_columns=numeric_columns,categoric_columns=categoric_columns,categoric_target=categoric_target,numeric_target=numeric_target)
+
+        if assumption_check_params is None:
+            assumption_check_params = {}
+        if check_assumptions is None:
+            check_assumptions=False
+        if check_assumptions==True:
+            if assumption_check_params:
+                levene_alpha = assumption_check_params.get('levene_alpha', 0.05)
+                ks_alpha = assumption_check_params.get('ks_alpha', 0.05)
+                return_pseudo = assumption_check_params.get('return_pseudo', False)
+                pseudo_test_max_global_ties_ratio = assumption_check_params.get('pseudo_test_max_global_ties_ratio', 0.5)
+                full_pseudo = assumption_check_params.get('full_pseudo', False)
+            else: 
+                levene_alpha =  0.05
+                ks_alpha = 0.05
+                return_pseudo = False
+                pseudo_test_max_global_ties_ratio =  0.5
+                full_pseudo = False
+        if assumption_check_params:
+                dropna=assumption_check_params.get('dropna', True)
+        else:
+            dropna= True
+
+        combinations = self.determine_column_combinations(data, 
+                                                          numeric_columns=numeric_columns,
+                                                          categoric_columns=categoric_columns,
+                                                          categoric_target=categoric_target,
+                                                          numeric_target=numeric_target,
+                                                          cols_to_exclude_from_targets=cols_to_exclude_from_targets)
+
         if len(combinations)<1:
             return pd.DataFrame(columns=['category','numeric','P-value'])
-        res_dict={}
+        res_dict={'category':[],'numeric':[],'P-value':[]}
+        if check_assumptions==True:
+            res_dict['assumptions_met']=[]
         for combo in combinations:
             p=self.one_way_kruskal_wallis(data[[*combo]])
-            res_dict[(combo[0],combo[1])]=[p]
-        res = pd.DataFrame(res_dict).T.reset_index(drop=False)
-        res.columns=['category','numeric','P-value']
-        self.one_way_kruskal_wallis_df_overview=res
+            res_dict['category'].append(combo[0])
+            res_dict['numeric'].append(combo[1])
+            res_dict['P-value'].append(p)
+            if check_assumptions==True:
+                kruskal_assumptions_met = self.kruskal_wallis_assumptions(data[combo[0]], 
+                                                                    data[combo[1]], 
+                                                                    levene_alpha=levene_alpha,
+                                                                    ks_alpha=ks_alpha,
+                                                                    dropna=dropna,
+                                                                    retrieve_meta=False,
+                                                                    return_pseudo=return_pseudo,
+                                                                    pseudo_test_max_global_ties_ratio=pseudo_test_max_global_ties_ratio,
+                                                                    full_pseudo=full_pseudo,
+                                                                    jupyter_output=False)
+                res_dict['assumptions_met'].append(kruskal_assumptions_met)
+        res = pd.DataFrame(res_dict)
+        res.columns=[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]
         return res
-    
     #=========================================================================================================================================================
     # a comparison function that supports either 'kruskal' or 'anova'
     #=========================================================================================================================================================
     
-    def cat_num_column_comparison(self,data, alpha=0.05,keep_above_p:bool|None=False, numeric_columns:list|None=None,categoric_columns:list|None=None,numeric_target:str|list|None=None,categoric_target:str|list|None=None, test_method:str='kruskal'):
+    def cat_num_column_comparison(self,
+                                  data:pd.DataFrame, 
+                                  alpha:float|None=None,
+                                  keep_above_p:bool|None=None, 
+                                  numeric_columns:list|None=None,
+                                  categoric_columns:list|None=None,
+                                  numeric_target:str|list|None=None,
+                                  categoric_target:str|list|None=None, 
+                                  test_method:None|str=None,
+                                  cols_to_exclude_from_targets:str|list|None=None,
+                                  check_assumptions:bool|None=None,
+                                  anova_assumption_check_params:dict|None=None,
+                                  kruskal_assumption_check_params:dict|None=None):
         """
         test_method can be of ('kruskal','anova')
         takes alpha as a parameter 
@@ -406,10 +1238,30 @@ class ANOVA:
         if keep_above_p==True p_values>=alpha are returned
         else all p_values are returned
         """
+
+        test_method = 'kruskal' if test_method is None else test_method
+        alpha = 0.05 if alpha is None else alpha
         if test_method=='kruskal':
-            p_table=self.test_all_cat_num_kruskal_wallis(data,numeric_columns,categoric_columns,categoric_target,numeric_target)
+            p_table=self.test_all_cat_num_kruskal_wallis(data=data, 
+                                                        numeric_columns=numeric_columns,
+                                                        categoric_columns=categoric_columns,
+                                                        categoric_target=categoric_target,
+                                                        numeric_target=numeric_target,
+                                                        cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                                        check_assumptions=check_assumptions,
+                                                        assumption_check_params=kruskal_assumption_check_params,
+                                                        )
+            
         elif test_method=='anova':
-            p_table=self.test_all_cat_num_ANOVA(data,numeric_columns,categoric_columns,categoric_target,numeric_target)            
+            p_table=self.test_all_cat_num_ANOVA(data=data, 
+                                                        numeric_columns=numeric_columns,
+                                                        categoric_columns=categoric_columns,
+                                                        categoric_target=categoric_target,
+                                                        numeric_target=numeric_target,
+                                                        cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                                        check_assumptions=check_assumptions,
+                                                        assumption_check_params=anova_assumption_check_params)     
+    
         else:
             raise ValueError("Unknown test_method. test_method should be one of ('kruskal','anova')")
         if keep_above_p==False:
@@ -423,15 +1275,15 @@ class ANOVA:
     # ========================================================================================================================================================================= 
     # ========================================================================================================================================================================= 
     # two sample t_tests
-    def two_sample_t_tests(self,catx_numy_df):
+    def two_sample_t_tests(self,
+                           data:pd.DataFrame):
 
         """
-        
+        where data columns[ 0 , 1 ] should be [ x_feature=category , y_target=numeric ]
         Default is "welch's" t_test because it is robust to unequal varaince and unequal sample sizes
 
         """
 
-        data=pd.DataFrame(catx_numy_df)
         cols=data.columns
         cat=cols[0]
         num=cols[1]
@@ -455,9 +1307,18 @@ class ANOVA:
         merged['n_samples_2']=merged['n_samples_2'].astype(int)
         return merged
 
-    def subcategory_similarities(self,catx_numy_df,alpha=0.05,return_similar=False,min_observations:int=None):
+    def subcategory_similarities(self,
+                                 catx_numy_df:pd.DataFrame,
+                                 alpha:None|float=None,
+                                 return_similar:None|bool=None,
+                                 min_observations:None|int=None):
+        """
+        where catx_numy_df is a pd.DataFrame with categoric x feature and numeric y target
+        calls two_sample_t_tests and can filter based on p_value and/or sample size according to parameters
+        """
+        alpha = 0.05 if alpha is None else alpha
+        return_similar = False if return_similar is None else return_similar
         data=self.two_sample_t_tests(catx_numy_df)
-        data=data.dropna(subset=['subcat_2'])
         if return_similar==False:
             data=data.loc[data['P-value']<alpha]
         if min_observations is not None:

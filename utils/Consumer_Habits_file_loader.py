@@ -1,8 +1,8 @@
 #file loader
 try:
-    from utils.BinnerClass import Bin
+    from .utils.BinnerClass import Bin
 except:
-    from BinnerClass import Bin
+    from .BinnerClass import Bin
 import pathlib
 import pandas as pd
 bin=Bin()
