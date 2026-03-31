@@ -5,29 +5,34 @@ import itertools
 from itertools import combinations
 import numpy as np
 import inspect
+from joblib import Parallel, delayed
 
 #these use f.survival_function or t.survival_function) to calculate the p value
 # scipy.stats.f.sf(f_score,dfn,dfd) where dfn is the numerator--mean_square(ie variance) and dfd is denominator-->error# this returns a p value for the f stat
 #     #https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.t.html#scipy.stats.t
 #     #https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.t.html#scipy.stats.f
-
+#  AT THIS TIME:  tests that are specific to scipy.stats are used. Specifically in the case of assumption checking 
+# DEBUG TOOL TO CHECK BOTTLE NECKS
 
 class ANOVA:
-    def __init(self):
+    def __init__(self):
         self.two_way_interaction_columns=None
         self.two_way_interaction_sizes=None
 
     # =========================================================================================================================================================================
     # 5 functions that check assumptions for ONE-WAY-ANOVA
     # 4 function that check assumptions for Kruskal Wallis tests
-    # they can be called with parameter retrieve_meta==True, to produce in depth meta results 
-    # otherwise they return True/False
+    # they can be called with parameter retrieve_meta==True, to produce in-depth meta results 
+    # otherwise they return True/False/'Pseudo'
     # anova_assumption_checks() wraps multiple helper functions
     # kruskal_wallis_assumptions() wraps multiple helper as well
     # they are called/located in test_all_cat_num_kruskal_wallis() and test_all_cat_num_ANOVA() 
-    # scipy.stats.shapiro() is called in _anova_check_normality() and tests for normality, but is exclusive to scipy.stats
+    # scipy.stats.shapiro() and scipy.stats.normaltest() are called in _anova_check_normality() and tests for normality, 
+    # scipy.stats.shapiro() is exclusive to scipy.stats
+    # scipy.stats.normaltest() is supported in other libraries and on gpu. 
+    # scipy.stats.normaltest() impliments D'Agostino's K2
     # scipy.stats.ks_2samp() is called in _kruskal_assumptions_strict() and kruskal_assumptions_meta(), it is exclusive to scipy.stats
-    # scipy.stats.levene() is supported in libraries such as cupy, jax, pytorch
+    # scipy.stats.levene() is supported in libraries such as cupy, jax, pytorch, but not for gpu
 
     
     # 1) Group size check
@@ -94,7 +99,7 @@ class ANOVA:
 
         """
         Test normality of the dependent variable within each group
-        using the Shapiro-Wilk test available strictly from scipy.stats via pandas or numpy and possible not other
+        using the Shapiro-Wilk  or D'Agustino K2 : scipy.stats.shapiro or scipy.stats.normaltest
 
         Parameters
         ----------
@@ -128,33 +133,64 @@ class ANOVA:
         else:
             df = pd.DataFrame({'group': group, 'y': y})
         dropna=False
-
+ 
         if retrieve_meta == True:
-            def shapiro_test(vals):
+            def norm_test(vals):
                 vals=vals.dropna()
                 if len(vals) < 3:
                     return pd.Series({
+                        'test': np.nan,
                         'stat': np.nan,
                         'p': np.nan,
                         'normal': False,
                         'note': 'n<3'
                     })
-                stat, p = scipy.stats.shapiro(vals)
-                return  pd.Series({
-                        'stat': stat,
-                        'p': p,
-                        'normal': p>alpha,
-                        'note': 'n>=3'
-                    })
-
-            return df.groupby('group',dropna=dropna)['y'].apply(shapiro_test).rename('is_normal')
-        def shapiro_test(vals):
+                if len(vals) < 300:
+                    with warnings.catch_warnings(record=True) as w:
+                        warnings.simplefilter("always")  
+                        stat, p = scipy.stats.shapiro(vals)   
+                    """if w:
+                        print(w[-1].message) """
+                    return  pd.Series({
+                            'test':'shapiro',
+                            'stat': stat,
+                            'p': p,
+                            'normal': p>alpha,
+                            'note': 'n>=3'
+                        })
+                else:
+                    with warnings.catch_warnings(record=True) as w:
+                        warnings.simplefilter("always") 
+                        stat, p = scipy.stats.normaltest(vals)   
+                    """if w:
+                        print(w[-1].message) """
+                    return  pd.Series({
+                            'test':"dagostino",
+                            'stat': stat,
+                            'p': p,
+                            'normal': p>alpha,
+                            'note': 'n>=3'})
+            return df.groupby('group',dropna=dropna)['y'].apply(norm_test).rename('is_normal')
+        
+        def norm_test(vals):
                 vals=vals.dropna()
                 if len(vals) < 3:
                     return False
-                stat, p = scipy.stats.shapiro(vals)
-                return  p > alpha  
-        return (df.groupby('group',dropna=dropna)['y'].apply(shapiro_test)).all() 
+                with warnings.catch_warnings(record=True) as w:
+                    warnings.simplefilter("always") 
+                    if len(vals) < 300:
+                        stat, p = scipy.stats.shapiro(vals)  # perfom test on a sample to avoid compute. computing corr in scipy.stats.shapiro() seems be an issue that slows perfomance
+                        """if w:
+                            print(w[-1].message)"""
+                        return  p > alpha  
+                    else:
+                        stat, p = scipy.stats.normaltest(vals)  # perfom test on a sample to avoid compute. computing corr in scipy.stats.shapiro() seems be an issue that slows perfomance
+                """if w:
+                    print(w[-1].message)"""
+                return  p > alpha             
+
+        result = (df.groupby('group',dropna=dropna)['y'].apply(norm_test)).all() 
+        return result
     
     # 3) Homogeneity of variance (Levene – more robust than Bartlett)
     def _anova_check_homogeneity(self,
@@ -211,8 +247,11 @@ class ANOVA:
         dropna=False
 
         grouped = [vals.values for _, vals in df.groupby('group',dropna=dropna)['y']]
-
-        stat, p = scipy.stats.levene(*grouped, center=center)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always") 
+            stat, p = scipy.stats.levene(*grouped, center=center)
+        """if w:
+            print(w[-1].message)  """
         meta = {
             'stat': stat,
             'p': p,
@@ -275,7 +314,9 @@ class ANOVA:
         dropna=False
 
         df['is_outlier'] = False
-
+        #############################################################################################
+        # add a how parameter here to either identify outliers based on z score or on relation to iqr
+        #############################################################################################
         q1 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.25))
         q3 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.75))
         iqr = q3 - q1
@@ -347,6 +388,9 @@ class ANOVA:
         if dropna is None:
             dropna=True
             
+
+      
+
         # use pandas data frame in case of numpy array input to ensure NaN handling is consistent
 
         df = pd.DataFrame({'group': group, 'y': y})
@@ -406,22 +450,30 @@ class ANOVA:
 
         df = outlier_result
 
-        result_list = [1,1,1]
+        
         # Step 2: checks
-        result_list[0] = self._anova_assumptions_check_group_sizes(df['group'], 
+        res_1 = self._anova_assumptions_check_group_sizes(df['group'], 
                                                     df['y'], 
                                                     min_n=min_n,
                                                     dropna=dropna)
-        result_list[1] = self._anova_check_normality(df['group'], 
-                                                    df['y'], 
-                                                    alpha=normality_alpha,
-                                                    dropna=dropna)
-        result_list[2] = self._anova_check_homogeneity(df['group'], 
+        if res_1 == False:
+            return False
+
+        res_2 = self._anova_check_homogeneity(df['group'], 
                                                     df['y'], 
                                                     alpha=homogeneity_alpha,
                                                     dropna=dropna)
-
-        return all(result_list)
+        
+        if res_2==False:
+            return False
+    
+        res_3 = self._anova_check_normality(df['group'], 
+                                                    df['y'], 
+                                                    alpha=normality_alpha,
+                                                    dropna=dropna)
+        if res_3==False:
+            return False
+        return True
     
 
     def _kruskal_assumptions_pseudo(self, 
@@ -461,7 +513,137 @@ class ANOVA:
             return ties_ratio
         return "Psuedo" if ties_ratio < max_global_ties_ratio else False
 
+    def _ks_pairwise_parallel(self,
+                            df:pd.DataFrame, 
+                            x_col:str, 
+                            y_col:str, 
+                            n_jobs:int=None,
+                            alpha:float=None,
+                            return_meta:bool=None,
+                            guesstimate:dict|None=None):
+        """
+        This assumes no group size is <3
+        as per levene checks that happen before this is called
+        if guesstimate is not False or None:
+            rej_max_pct_in_group and/or max_num_z_all_rej can be passed as a dict in place of True for guesstimate
+            both need to be exceded for the result to output False
+            rej_max_pct_in_group is max percentage of reject in combos the given group is involved in. Such that the group can be in left or right column
+            max_num_z_all_rej is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
+            max_pct_reject_total is total pct of combinations that rejected
+            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
 
+            two ways to fail: (the 1st is 2 parts)
+            1) if one or more varaibles exced percentage failure for num combos it is involved with |or| any one variable excedes the z score threshold
+            2) max_pct_reject_total is exceded. In this case, it can be one or many varaibles that contribute. Even if none were caught in previous
+        """
+        if n_jobs is None:
+            n_jobs=-2         # maximize use of resources but leave one for user flexibility
+        if return_meta is None:
+            return_meta=False
+        if alpha is None:
+            alpha=0.05
+        if guesstimate is None:
+            guesstimate=False
+        if (guesstimate!=False):
+            default_guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
+            if guesstimate==True:
+                guesstimate = default_guesstimate
+            else:
+                default_guesstimate.update(guesstimate)
+            rej_max_pct_in_group = default_guesstimate.get('rej_max_pct_in_group',0.2)
+            max_num_z_all_rej    = default_guesstimate.get('max_num_z_all_rej',3)
+            max_pct_reject_total = default_guesstimate.get('max_pct_reject_total',0.2)
+        
+        grouped = (
+            df[[x_col, y_col]]
+            .groupby(x_col,as_index=True)[y_col]
+            .apply(np.asarray)
+        )
+
+        keys = list(grouped.index)
+
+        grouped = grouped.to_dict()
+
+        def compute(i, j):
+            a, b = grouped[i], grouped[j]
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                stat, p = scipy.stats.ks_2samp(a,b)
+            """if w:
+                print(w[-1].message)   """ 
+            return i, j, stat, p
+
+        try:   # catch edge cases where n_jobs may be out of range
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(compute)(i, j)
+                for i, j in combinations(keys, 2)
+            )
+            if return_meta == True:
+                return pd.DataFrame(
+                                    results,
+                                    columns=[x_col + "_1", x_col + "_2", "ks_stat", "p_value"]  
+                                    )
+            base_df = pd.DataFrame(
+                                results,
+                                columns=[x_col + "_1", x_col + "_2", "ks_stat", "p_value"]  
+                                )
+            bool_df = (base_df['p_value'] < alpha)
+            if (guesstimate!=False):
+                total = base_df.shape[0]
+                sum_reject = bool_df.sum()
+                pct_reject = sum_reject/total  # based on number of combos
+                group_sizes = 2*total/len(keys)  # the group can be in left or right column
+                sums_df = pd.DataFrame(np.zeros(len(keys)),index=keys,columns=['totals'])
+                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True).size().rename('count_2')
+                sums_df = pd.merge(sums_df, m1, how='left',left_index=True, right_index=True)
+                sums_df = pd.merge(sums_df, m2, how='left',left_index=True, right_index=True).fillna(0)
+                # make sure NaNs have been filled
+                sums_df['totals'] = sums_df['count_1']+sums_df['count_2']
+                mu, q = sums_df['totals'].mean(), sums_df['totals'].std(ddof=0)
+                sums_df['z'] = (sums_df['totals']-mu) / q
+                sums_df['pct_of_group'] = sums_df['totals']/group_sizes
+                # where true is in the fail to meet assumption direction
+                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_z_all_rej)
+
+                return (not ((sums_df['result']).any() or (pct_reject > max_pct_reject_total)))
+            return bool_df.any()
+        except Exception as e:
+            warnings.warn(f'Problem encountered durring parallel computing of similarity scores for Kruskal-Wallis assumption checks: \n{e}. \nTrying n_jobs = -1.')
+            results = Parallel(n_jobs=-1)(
+                            delayed(compute)(i, j)
+                            for i, j in combinations(keys, 2)
+                        )
+
+            if return_meta == True:
+                return pd.DataFrame(
+                                    results,
+                                    columns=[x_col + "_1", x_col + "_2", "ks_stat", "p_value"]  
+                                    )
+            base_df = pd.DataFrame(
+                                results,
+                                columns=[x_col + "_1", x_col + "_2", "ks_stat", "p_value"]  
+                                )
+            bool_df = (base_df['p_value'] < alpha)
+            if (guesstimate!=False):
+                total = base_df.shape[0]
+                sum_reject = bool_df.sum()
+                pct_reject = sum_reject/total  # based on number of combos
+                group_sizes = 2*total/len(keys)  # the group can be in left or right column
+                sums_df = pd.DataFrame(np.zeros(len(keys)),index=keys,columns=['totals'])
+                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True).size().rename('count_2')
+                sums_df = pd.merge(sums_df, m1, how='left',left_index=True, right_index=True)
+                sums_df = pd.merge(sums_df, m2, how='left',left_index=True, right_index=True).fillna(0)
+                # make sure NaNs have been filled
+                sums_df['totals'] = sums_df['count_1']+sums_df['count_2']
+                mu, q = sums_df['totals'].mean(), sums_df['totals'].std(ddof=0)
+                sums_df['z'] = (sums_df['totals']-mu) / q
+                sums_df['pct_of_group'] = sums_df['totals']/group_sizes
+                # where true is in the fail to meet assumption direction
+                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_z_all_rej)
+            
+                return (not ((sums_df['result']).any() or (pct_reject > max_pct_reject_total)))
+        
+            return bool_df.any()
 
     def _kruskal_assumptions_strict(self,
                         group, 
@@ -470,7 +652,9 @@ class ANOVA:
                         ks_alpha:float|None=None,
                         dropna:bool|None=None,
                         return_pseudo:bool|None=None,
-                        pseudo_test_max_global_ties_ratio:float|None=None):
+                        pseudo_test_max_global_ties_ratio:float|None=None,
+                        guesstimate:dict|bool|None=None,
+                        n_jobs:int|None=None):
         """
         where return_pseudo returns "Pseudo-Ratio: "+ ratio if the test of median fails. 
         Without the equal-shape assumption ( test of median ), a significant result means:
@@ -484,6 +668,7 @@ class ANOVA:
         reduced sensitivity and motivates alternative methods. 
             assumptions parameter should be set w rule of thumb ties_ratio>.5 bad, >.7 raise caution. 
             if check_assumptions==True: default is assumption_check_params={'max_global_ties_ratio' : 0.5}
+        calls _ks_pairwise_parallel(). it's guesstimate dict params should be explained in a higher leve function
             ELSE: """
 
         if levene_alpha is None:
@@ -496,6 +681,7 @@ class ANOVA:
             return_pseudo=False
         if pseudo_test_max_global_ties_ratio is None:
             pseudo_test_max_global_ties_ratio = 0.5
+        
 
 
         df = pd.DataFrame({'group': group, 'y': y})
@@ -509,48 +695,53 @@ class ANOVA:
         if df.empty:
             return False
 
-        keys = df['group'].unique()
         dropna = False
-
+            
+        # --- 1. spread similarity (Levene) ---
+        groups = [vals.values  for _, vals in df.groupby('group',dropna=dropna)['y']]
+        if len(groups)<2:
+            return False
+        if any([len(i)<3 for i in groups]):
+            if return_pseudo==True:
+                return self._kruskal_assumptions_pseudo(df['y'],
+                                                            dropna=dropna,
+                                                            max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+            return False
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-
-            # --- 1. spread similarity (Levene) ---
-            groups = [vals.values  for _, vals in df.groupby('group',dropna=dropna)['y']]
-            if len(groups)<2:
-                return False
-            if any([len(i)<3 for i in groups]):
-                if return_pseudo==True:
-                    return self._kruskal_assumptions_pseudo(df['y'],
-                                                                dropna=dropna,
-                                                                max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
-                return False
-            _, levene_p = scipy.stats.levene(*groups, center='median')
-            if levene_p < levene_alpha:
-                if return_pseudo==True:
-                    return self._kruskal_assumptions_pseudo(df['y'],
-                                                                dropna=dropna,
-                                                                max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
-                return False
-            
-            # --- 2. shape similarity (pairwise KS) ---
-            for i in range(len(keys)):  
-                for j in range(i + 1, len(keys)):  # ensures every combo is tested
-                    g1 = df.loc[df['group'] == keys[i], 'y']
-                    g2 = df.loc[df['group'] == keys[j], 'y']
-                    if (g1.empty or g2.empty):
-                        continue
-                    _, p = scipy.stats.ks_2samp(g1, g2)
-                    if p < ks_alpha:
-                        if return_pseudo==True:
-                            return self._kruskal_assumptions_pseudo(df['y'],
-                                                                        dropna=dropna,
-                                                                        max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
-                        return False  # distributions differ → not just medians
-            """
-            if w:
-                print(w[-1].message)     
-            """       
+            _, levene_p = scipy.stats.levene(*groups, center='median')            
+        """if w:
+            print(w[-1].message) """               
+        if levene_p < levene_alpha:
+            if return_pseudo==True:
+                return self._kruskal_assumptions_pseudo(df['y'],
+                                                            dropna=dropna,
+                                                            max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+            return False
+        
+        # --- 2. shape similarity (pairwise KS) ---
+        is_sim = self._ks_pairwise_parallel(df[['group','y']], 
+                            'group', 
+                            'y', 
+                            n_jobs=n_jobs,
+                            alpha=ks_alpha,
+                            return_meta=False,
+                            guesstimate=guesstimate)
+        """
+        # use self._ks_pairwise_parallel() instead
+        for i in range(len(groups)):  
+            for j in range(i + 1, len(groups)):  # ensures every combo is tested
+                g1 = groups[i]
+                g2 = groups[j]
+                _, p = scipy.stats.ks_2samp(g1, g2)
+        """
+        if is_sim==False:
+            if return_pseudo==True:
+                return self._kruskal_assumptions_pseudo(df['y'],
+                                                            dropna=dropna,
+                                                            max_global_ties_ratio=pseudo_test_max_global_ties_ratio)
+            return False  # distributions differ → not just medians
+ 
         return True
 
 
@@ -560,6 +751,8 @@ class ANOVA:
                                         group, 
                                         y,
                                         dropna:bool|None=None,
+                                        guesstimate:dict|bool|None=None,
+                                        n_jobs:int|None=None,
                                         jupyter_output:bool|None=None):
         """
         returns meta as a dict
@@ -605,9 +798,22 @@ class ANOVA:
 
         # --- variance equality (robust) ---
         groups = [g['y'].values for _, g in df.groupby('group',dropna=dropna)]
-        levene_stat, levene_p = scipy.stats.levene(*groups, center='median')
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            levene_stat, levene_p = scipy.stats.levene(*groups, center='median')            
+        """if w:
+            print(w[-1].message)   """
+        
 
         # --- distribution equality (stronger check) ---
+        ks_df = self._ks_pairwise_parallel(df[['group','y']], 
+                            'group', 
+                            'y', 
+                            n_jobs=n_jobs,
+                            alpha=None,
+                            return_meta=True,
+                            guesstimate=guesstimate)
+        """
         # pairwise KS tests
         ks_results = []
         for i in range(len(keys)):
@@ -620,6 +826,7 @@ class ANOVA:
                 ks_results.append((keys[i], keys[j], stat, p))
 
         ks_df = pd.DataFrame(ks_results, columns=['g1','g2','ks_stat','p']) if ks_results else pd.DataFrame(columns=['g1','g2','ks_stat','p'])
+        """
 
         # --- kruskal-wallis ---
         kw_stat, kw_p = scipy.stats.kruskal(*groups)
@@ -648,7 +855,9 @@ class ANOVA:
                         return_pseudo:bool|None=None,
                         pseudo_test_max_global_ties_ratio:float|None=None,
                         full_pseudo:bool|None=None,
-                        jupyter_output:bool|None=None):
+                        jupyter_output:bool|None=None,
+                        guesstimate:dict|bool|None=None,
+                        n_jobs:int|None=None):
         """
         if retrieve_meta==False
             calls _kruskal_assumptions_strict() w optional parameter return_pseudo to call  _kruskal_assumptions_pseudo() only if assumptions arent met
@@ -671,6 +880,18 @@ class ANOVA:
                 assumptions parameter should be set w rule of thumb ties_ratio>.5 bad, >.7 raise caution. 
                 if check_assumptions==True: default is assumption_check_params={'max_global_ties_ratio' : 0.5}
         
+        if guesstimate is not False or None:
+            it controls how pairwise grouped vars are tested for similar distributions
+            elements in {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2} can be passed as a dict in place of True for guesstimate
+            any one of them needs to be exceded for the result to output False
+            rej_max_pct_in_group is max percentage of reject in combos the given group is involved in. Such that the group can be in left or right column
+            max_num_z_all_rej is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
+            max_pct_reject_total is total pct of combinations that rejected
+            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
+
+            two ways to fail: (the 1st is 2 parts)
+            1) if one or more varaibles exced percentage failure for num combos it is involved with |or| any one variable excedes the z score threshold
+            2) max_pct_reject_total is exceded. In this case, it can be one or many varaibles that contribute. Even if none were caught in previous
         """
 
         if levene_alpha is None:
@@ -991,15 +1212,27 @@ class ANOVA:
     # =========================================================================================================================================================================
     # ANOVA
     def one_way_ANOVA(self,
-                      two_col_df_x_y:pd.DataFrame):
+                      two_col_df_x_y:pd.DataFrame,
+                      dropna:bool|None=None):
         """
         Where col in position [0] is catigorical and [1] is numeric
         returns np.nan when there arent enough observations or when there is no within-group variance
         """
+
         two_col_df_x_y=pd.DataFrame(two_col_df_x_y) 
         cols=two_col_df_x_y.columns
         x= cols[0]
         y= cols[1]
+
+        if dropna is None:
+            dropna=True
+        if dropna==False:
+            two_col_df_x_y = two_col_df_x_y.dropna(subset=[y])
+            two_col_df_x_y[x] = two_col_df_x_y[x].where(~two_col_df_x_y[x].isna(), 'NaN')
+        else:
+            two_col_df_x_y = two_col_df_x_y.dropna()
+
+
         number_of_groups=two_col_df_x_y[x].nunique()
         overall_mean=two_col_df_x_y[y].mean()
 
@@ -1059,20 +1292,18 @@ class ANOVA:
         if assumption_check_params is None:
             assumption_check_params = {}
         if check_assumptions is None:
-            check_assumptions=False
+            check_assumptions=True
         if check_assumptions==True:
             if assumption_check_params:
                 normality_alpha=assumption_check_params.get('normality_alpha', 0.02)
                 homogeneity_alpha=assumption_check_params.get('homogeneity_alpha', 0.05)
                 min_n=assumption_check_params.get('min_n', 5) # min obs per group
                 iqr_multiplier=assumption_check_params.get('iqr_multiplier', 2)
-                dropna=assumption_check_params.get('dropna', True)
             else:
                 normality_alpha= 0.02
                 homogeneity_alpha= 0.02
                 min_n= 5
                 iqr_multiplier= 2
-                dropna= True
         if assumption_check_params:
                 dropna=assumption_check_params.get('dropna', True)
         else:
@@ -1090,7 +1321,8 @@ class ANOVA:
         if check_assumptions==True:
             res_dict['assumptions_met']=[]
         for combo in combinations:
-            p=self.one_way_ANOVA(data[[*combo]])
+            p=self.one_way_ANOVA(data[[*combo]],
+                                 dropna=dropna)
             res_dict['category'].append(combo[0])
             res_dict['numeric'].append(combo[1])
             res_dict['P-value'].append(p)
@@ -1105,7 +1337,7 @@ class ANOVA:
                                                                       dropna=dropna)
                 res_dict['assumptions_met'].append(anova_assumptions_met)
         res = pd.DataFrame(res_dict)
-        res.columns=[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]
+        res = res[[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]]
         return res
 
     # =========================================================================================================================================================================
@@ -1117,16 +1349,25 @@ class ANOVA:
     
     # Kruskal Wallis
     def one_way_kruskal_wallis(self,
-                               two_col_cat_num_df:pd.DataFrame):
+                               two_col_cat_num_df:pd.DataFrame,
+                               dropna:bool|None=None):
         """
         Where col in positions [0] is catigorical and [1] is numeric
         """
         
-        data=pd.DataFrame(two_col_cat_num_df.copy())  #ensure CuDF if applicable. A check would be better, but this prototypes well
-        data.columns=[f"temp_{(i+1)*10}" for i in range(len(data.columns))]
+        data=pd.DataFrame(two_col_cat_num_df.copy())  
         cols=data.columns
         x = cols[0]
         y = cols[1]
+        
+        if dropna is None:
+            dropna=True
+        if dropna==False:
+            data = data.dropna(subset=[y])
+            data[x] = data[x].where(~data[x].isna(), 'NaN')
+        else:
+            data = data.dropna()
+
         #assign ranks
         data['rank']=data[y].rank(method='average')
         #   where ni is each group size
@@ -1163,7 +1404,7 @@ class ANOVA:
         if assumption_check_params is None:
             assumption_check_params = {}
         if check_assumptions is None:
-            check_assumptions=False
+            check_assumptions=True
         if check_assumptions==True:
             if assumption_check_params:
                 levene_alpha = assumption_check_params.get('levene_alpha', 0.05)
@@ -1171,12 +1412,16 @@ class ANOVA:
                 return_pseudo = assumption_check_params.get('return_pseudo', False)
                 pseudo_test_max_global_ties_ratio = assumption_check_params.get('pseudo_test_max_global_ties_ratio', 0.5)
                 full_pseudo = assumption_check_params.get('full_pseudo', False)
+                guesstimate = assumption_check_params.get('guesstimate',False)
+                n_jobs      = assumption_check_params.get('n_jobs',-2)
             else: 
                 levene_alpha =  0.05
                 ks_alpha = 0.05
                 return_pseudo = False
                 pseudo_test_max_global_ties_ratio =  0.5
                 full_pseudo = False
+                guesstimate = False
+                n_jobs      = -2
         if assumption_check_params:
                 dropna=assumption_check_params.get('dropna', True)
         else:
@@ -1195,7 +1440,8 @@ class ANOVA:
         if check_assumptions==True:
             res_dict['assumptions_met']=[]
         for combo in combinations:
-            p=self.one_way_kruskal_wallis(data[[*combo]])
+            p=self.one_way_kruskal_wallis(data[[*combo]],
+                                          dropna=dropna)
             res_dict['category'].append(combo[0])
             res_dict['numeric'].append(combo[1])
             res_dict['P-value'].append(p)
@@ -1209,10 +1455,12 @@ class ANOVA:
                                                                     return_pseudo=return_pseudo,
                                                                     pseudo_test_max_global_ties_ratio=pseudo_test_max_global_ties_ratio,
                                                                     full_pseudo=full_pseudo,
-                                                                    jupyter_output=False)
+                                                                    jupyter_output=False,
+                                                                    guesstimate=guesstimate,
+                                                                    n_jobs=n_jobs)
                 res_dict['assumptions_met'].append(kruskal_assumptions_met)
         res = pd.DataFrame(res_dict)
-        res.columns=[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]
+        res = res[[i for i in ['category','numeric','P-value','assumptions_met'] if i in res.columns]]
         return res
     #=========================================================================================================================================================
     # a comparison function that supports either 'kruskal' or 'anova'

@@ -10,9 +10,9 @@ import warnings
 
 ###   ProbabilisticModeling import
 try:
-    from ProbabilisticModeling import ProbabilisticModeling
-except ModuleNotFoundError:
     from utils.ProbabilisticModeling import ProbabilisticModeling
+except ModuleNotFoundError:
+    from ProbabilisticModeling import ProbabilisticModeling
 
 ### streamlit import
 try:

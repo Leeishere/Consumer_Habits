@@ -1,21 +1,20 @@
 
-import inspect
 try:
-    from .CompareColumns import CompareColumns
+    from utils.CompareColumns import CompareColumns
 except:
-    from .Utils_HypTests_and_Coefficients.CompareColumns import CompareColumns
+    from CompareColumns import CompareColumns
 try:
-    from .Chi2 import Chi2
+    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
 except:
-    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from Utils_HypTests_and_Coefficients.Chi2 import Chi2
 try:
-    from .Combinators import calculate_num_combinations
+    from utils.Utils_HypTests_and_Coefficients.Combinators.py import calculate_num_combinations
 except:
-    from .Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
+    from Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
 try:
-    from .PlotClass import PlotClass
+    from utils.PlotClass import PlotClass
 except:
-    from .Utils_HypTests_and_Coefficients.PlotClass import PlotClass
+    from PlotClass import PlotClass
 
 import pandas as pd
 import numpy as np
@@ -29,7 +28,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                  catnum_meth_alpha_above_instructions:list|tuple|None|bool=True, 
                  catcat_meth_alpha_above_instructions:list|tuple|None|bool=True,
                  good_of_fit_uniform_test_instrucions:list|tuple|None|bool=True,
-                 concatinated_multivariate_header_divider:str='_&_',
+                 multivariate_concatination_delimiter:str|None=None,
                  continuous_ordinalized_suffix:str='-ADcont-Ordinalized',  #AD for AnalyzeDataset class, cont for continuous
                  continuous_binned_suffix:str='-ADcont-Binned',
                  categorical_ordinalized_suffix:str='-ADcat-Ordinalized',
@@ -38,7 +37,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                  multivariate_params:dict = {'max_n_combination_size':3,
                                        'max_n_combinations':50_000,
                                        'min_combo_size':2},
-                 supercat_subcat_params:dict = {'max_evidence':0.2}
+                 supercat_subcat_params:dict = {'max_evidence':0.2},
+                 dropna_cats:bool|None=None,
+                 check_assumptions:bool|None=None,
+                 anova_assumption_check_params:dict|None=None,
+                 kruskal_assumption_check_params:dict|None=None,
+                 chi2_assumption_check_params:dict|None=None
                  ):                             
         """
         where for:
@@ -55,15 +59,36 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         self.continuous_ordinalized_suffix              = continuous_ordinalized_suffix
         self.continuous_binned_suffix                   = continuous_binned_suffix
         self.categorical_ordinalized_suffix             = categorical_ordinalized_suffix
-        self.concatinated_multivariate_header_divider   = concatinated_multivariate_header_divider
+        self.multivariate_concatination_delimiter       = "_|&|_" if multivariate_concatination_delimiter is None else multivariate_concatination_delimiter
         # IS SUPPORTED        
         # test instructions
         self.numnum_meth_alpha_above              = [('pearson',0.6,None),('spearman',0.6,None),('kendall',0.6,None)] if numnum_meth_alpha_above_instructions == True else None if numnum_meth_alpha_above_instructions == False else numnum_meth_alpha_above_instructions # where t tests cannot share the parameter with correlation tests
         self.catnum_meth_alpha_above              = [('kruskal',0.05,None),('anova',0.05,None)] if catnum_meth_alpha_above_instructions == True else None if catnum_meth_alpha_above_instructions == False else catnum_meth_alpha_above_instructions # where variable is not like stat dataframe. dataframe has numric in column 0 and categoric in column 1
         self.catcat_meth_alpha_above              = [('chi2',0.05,None)] if catcat_meth_alpha_above_instructions == True else None if catcat_meth_alpha_above_instructions == False else catcat_meth_alpha_above_instructions
         self.good_of_fit_uniform_test_instrucions = (0.05,None) if good_of_fit_uniform_test_instrucions == True else None if good_of_fit_uniform_test_instrucions == False else good_of_fit_uniform_test_instrucions
-        self.multivariate_params                  =  multivariate_params
+        self.multivariate_params                  = multivariate_params
         self.supercat_subcat_params               = supercat_subcat_params
+        # HOW TO PROCESS DATA, 
+        # presently check assumptions is only supported when categoric is involved, 
+        # and dropna is automatic in numeric, but optional in categoric (pd.NA and np.nan become text: "NaN")  
+        # dropna_cats is a parameter used in gooness of fit. others include dropna instructions in the parameter dict, but default to this     
+        self.dropna_cats                          = True if dropna_cats is None else dropna_cats
+        self.check_assumptions                    = True if check_assumptions is None else check_assumptions
+        # anove assumption checs
+        default_anova_assumption_check_params     = {'normality_alpha':0.02, 'homogeneity_alpha':0.02, 'min_n':5, 'iqr_multiplier':3, 'dropna':self.dropna_cats} 
+        if anova_assumption_check_params is not None:
+            default_anova_assumption_check_params.update(anova_assumption_check_params)
+        self.anova_assumption_check_params        = default_anova_assumption_check_params
+        # kruskal assumption checks
+        default_kruskal_assumption_check_params   = {'levene_alpha':0.01,'ks_alpha':0.01,'return_pseudo':True,'pseudo_test_max_global_ties_ratio': 0.7,'full_pseudo':False,'dropna':self.dropna_cats, 'n_jobs':-2, 'guesstimate':{'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}}
+        if kruskal_assumption_check_params is not None:
+            default_kruskal_assumption_check_params.update(kruskal_assumption_check_params)
+        self.kruskal_assumption_check_params      = default_kruskal_assumption_check_params
+        # chi2 assumption checks
+        default_chi2_assumption_check_params      = {'dropna':self.dropna_cats}
+        if chi2_assumption_check_params is not None:
+            default_chi2_assumption_check_params.update(chi2_assumption_check_params)
+        self.chi2_assumption_check_params         = default_chi2_assumption_check_params
 
         # keep track targets that have been fit   ---> can be used to filter targets in tests for future suport of piecemeal fitting-- such as when revising assumption handling in tests
         self.has_called_fit_column_relationships                   = set() 
@@ -94,6 +119,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         self.significant_multivariate_combinations = [] # where data form is: [ [[target,target_dtype],[list_combo_of_n_columns],test_type(s)], [], ...]
         #         .         .         .           .     # Its the same form derived in _prepare_target_plot_data using data stored in self.target_cols_with_significant_matches_and_not_significant for plotting
 
+        # ASSUMPTIONS NOT MET FOR HYPOTHESIS TESTING, NO VALID TEST RECORDED
+        self.assumptions_not_met             = {'catcat':[],'numnum':[],'numcat':[],'num':set(),'cat':set(),'nummulticat':[],'catmulticat':[]}
+
         # TARGET COLUMNS KEYS AND REJECT OR CORR ABOVE VALUE DICTIONARY
         # where each column is a key, and values are as follows
         # the term 'significant_relationship' is used to describe rejected null or correlation >= threshold
@@ -118,12 +146,15 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 'significant_categoric_combination_group_relationship':[],  #[[col1,col2,col3], [], ...]]
                 'significant_categoric_combination_group_relationship_test_type':[],  #[test(s)_group_1, test(2)_group_2]
                 'paired_to_a_supercategory':[],  # a list of columns it is partitioned by: its supercategory partitioner column
+                'paired_to_a_supercategory_tests':[],
                 'paired_to_a_subcategory':[],   # a list of columns that are partitioned by it: its subcategory groups column
+                'paired_to_a_subcategory_tests':[],
                 'target_dtype': [],  # can be one of 'numeric','categoric' to represent the data type of column_1 (in this case) ,
                 'max_n_variates_paired_with':[0],   #  int(biggest lenght of combo checked, default: [0]
                 'not_significant_numerics':[],
                 'not_significant_categorics':[],  # where columns that are grouped together to form significant relationships are ( intended at some point to be )removed and added to 'significant_categoric_relationship' as group(s)
-                'is_normal_or_uniform':[]   # for uniform tests: 'reject_uniform' or 'fail_to_reject_uniform'. For normal: UNSUPPORTED, but relevant in self._prepare_target_plot_data
+                'is_normal_or_uniform':[],   # for uniform tests: 'reject_uniform' or 'fail_to_reject_uniform'. For normal: UNSUPPORTED, but relevant in self._prepare_target_plot_data
+                'assumptions_not_met':{'catcat':[],'numnum':[],'numcat':[],'num':[],'cat':[],'nummulticat':[],'catmulticat':[]}
                 }
     #---------------------------------------------------------------------------------------------------------------------------------
     # HELPER FUNCTIONS 
@@ -135,7 +166,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
 
     def _categorize_bivariate_tests_as_rej_or_failrej(self,
                                                      test_df:pd.DataFrame,
-                                                     test_instructions:list|tuple):
+                                                     test_instructions:list|tuple,
+                                                     check_assumptions:bool|None=None):
         """
         where test_df is output from CompareColumns().multi_test_column_comparison(); 
             such as :
@@ -151,6 +183,10 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             such as [['Purchase Amount (USD)', 'Purchase Amount (USD)_Ordinalized', 'kendall-pearson-spearman'], ...]
         else: w/o test
         """
+        if check_assumptions is None:
+            check_assumptions = self.check_assumptions 
+        # create a default  
+        assumptions_not_met_list = []
         
         # check vor valid test direction input. shold be list or list of nested lists/tuples
         if (not isinstance(test_instructions,list) ) and (not isinstance(test_instructions,tuple)):
@@ -163,6 +199,10 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         list_of_tests = [i[0] for i in test_instructions]
         rej_or_corr_df = test_df.loc[test_df['test'].isin(list_of_tests)]
         failrej_or_below_corr_df = test_df.loc[test_df['test'].isin(list_of_tests)]
+        # capture all assumptions_met==False
+        if (check_assumptions==True) and ('assumptions_met' in test_df.columns):
+            assumptions_not_met_list = test_df.loc[(test_df['test'].isin(list_of_tests))&(test_df['assumptions_met']==False)][['column_a','column_b']].drop_duplicates(keep='first').to_numpy().tolist()
+
         for instructions in test_instructions:
             # determine which side of threshold is of interest in this tests 
             if (instructions[0] in ('pearson','spearman','kendall')) and ('Correlation' in test_df.columns):  # Correlation might not be included if targets are cat
@@ -171,6 +211,16 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             elif ('P-value' in test_df.columns):   # P-value might not be included if all targets and columns are numeric
                 rej_or_corr_df = rej_or_corr_df.loc[~((rej_or_corr_df['test']==instructions[0])&(rej_or_corr_df['P-value']>=instructions[1]))]
                 failrej_or_below_corr_df = failrej_or_below_corr_df.loc[~((failrej_or_below_corr_df['test']==instructions[0])&(failrej_or_below_corr_df['P-value']<instructions[1]))]
+        
+        # filter out all assumptions_met==False & and concat assumption met result to test type
+        if (check_assumptions==True) and ('assumptions_met' in rej_or_corr_df.columns):
+            rej_or_corr_df                     =  rej_or_corr_df.loc[rej_or_corr_df['assumptions_met']!=False]
+            rej_or_corr_df['test']             =  rej_or_corr_df['test'].astype(str)+':'+rej_or_corr_df['assumptions_met'].astype(str) 
+        if (check_assumptions==True) and ('assumptions_met' in failrej_or_below_corr_df.columns):
+            failrej_or_below_corr_df           = failrej_or_below_corr_df.loc[failrej_or_below_corr_df['assumptions_met']!=False]
+            failrej_or_below_corr_df['test']   = failrej_or_below_corr_df['test'].astype(str)+':'+failrej_or_below_corr_df['assumptions_met'].astype(str)
+        # POTENTIAL ADD P VALUE TO TEST STRING HERE 
+        # determine how many tests for each pair
         rej_or_corr_df['num_tests_per_pair'] = rej_or_corr_df.groupby(['column_a','column_b'])['test'].transform('count')
         mx=rej_or_corr_df['num_tests_per_pair'].max()
         if mx>1:
@@ -192,15 +242,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 new_rej_or_corr_df['test']=new_rej_or_corr_df.apply(lambda x: concat_test_types(x['num_tests_per_pair'],x['test_x'],x['test_y']),axis = 1)
                 new_rej_or_corr_df=new_rej_or_corr_df[['column_a','column_b','num_tests_per_pair','test']]
             def split_tests(test):
-                return list(set(test.split('|')))
-            # these should both probably be map(), but there may be a more efficient way than split rejoin etc anyways
-            # besides, test values and indicators of assumption qualifications need to be added to this string: "anova:p=0.0432:AssumptionsMet_&_kruskal... so it can be split on & then :
-            new_rej_or_corr_df['test'] = new_rej_or_corr_df['test'].apply(split_tests)  
-            new_rej_or_corr_df['len_test'] = new_rej_or_corr_df['test'].apply(lambda x: len(x))
+                return sorted(list(set(test.split('|'))))     # where set ensured unique so that num_tests_per_pair determined in groupby is represented
+            new_rej_or_corr_df['test'] = new_rej_or_corr_df['test'].map(split_tests)  
+            new_rej_or_corr_df['len_test'] = new_rej_or_corr_df['test'].map(len)
             new_rej_or_corr_df = new_rej_or_corr_df.loc[new_rej_or_corr_df['num_tests_per_pair']==new_rej_or_corr_df['len_test']][['column_a','column_b','test']]
             def clean_test(test):
                 return '-'.join(sorted(test))
-            new_rej_or_corr_df['test']=new_rej_or_corr_df['test'].apply(clean_test)
+            new_rej_or_corr_df['test']=new_rej_or_corr_df['test'].map(clean_test)
             new_rej_or_corr_df=new_rej_or_corr_df.drop_duplicates(keep='first')
             rej_or_corr_df=new_rej_or_corr_df
             del new_rej_or_corr_df
@@ -215,7 +263,10 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         # get fail to reject or below corr columns, but NOT TEST TYPE
         failrej_or_below_corr_cols_tests = failrej_or_below_corr_df[['column_a','column_b']].drop_duplicates(keep='first').to_numpy().tolist()
         failrej_or_below_corr_cols_tests = [i for i in failrej_or_below_corr_cols_tests if i not in filter_columns]
-        return rej_or_corr_cols_tests, failrej_or_below_corr_cols_tests
+
+        # need to filter to cover cases where one test met assumptions for vars another test didn't
+        assumptions_not_met_list = [ vars for vars in assumptions_not_met_list if ((vars not in filter_columns) and (vars not in failrej_or_below_corr_cols_tests))]
+        return rej_or_corr_cols_tests, failrej_or_below_corr_cols_tests, assumptions_not_met_list
 
 
 
@@ -232,8 +283,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         
     def _update_model_with_test_df_to_col_pairs_and_cols_as_targets(self,
                                                 test_df:pd.DataFrame,
-                                                targets:list  # a list of numeric and/or categoric columns. or []
-                                                ):
+                                                targets:list|None=None, 
+                                                check_assumptions:bool|None=None):
         """
         a function that calls self._categorize_bivariate_tests_as_rej_or_failrej iteratively
         and updates class variables
@@ -242,7 +293,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         test_instructions_list = [instruction for instruction in [self.numnum_meth_alpha_above,self.catnum_meth_alpha_above,self.catcat_meth_alpha_above] if instruction != None]
         
         # a helper function that updates class instances instead of overwriting in cases where fit is called multiple times, such as to prevent data loss
-        def class_instance_updater(new_vals, existing_instance, sort_them:bool=False):
+        def class_instance_updater(new_vals, 
+                                   existing_instance, 
+                                   sort_them:bool=False):
             """
             return a list that can replace the existing object: parameter: existing_instace
             does not modify existing in place
@@ -263,22 +316,68 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                             vals_to_add.append(pair)
                     # cases of [numeric, numeric] or [categoric, categoric]
                     else:
-                        if sorted(pair.copy()) not in existing_instance:
-                            vals_to_add.append(sorted(pair.copy()))
+                        if len(pair)>=3:
+                            npair = sorted(pair[:2])+pair[2:]
+                        else:
+                            npair = sorted(pair)
+                        if npair not in existing_instance:
+                            vals_to_add.append(npair)
                 result = existing_instance + vals_to_add 
             else:
+                if sort_them==True:
+                    if len(new_vals[0])>2:
+                        new_vals = [sorted(vl[:2]+vl[2:]) for vl in new_vals]
+                    else:
+                        new_vals = [sorted(vl) for vl in new_vals]
                 result = new_vals
             return result
         
+        def assumptions_not_met_target_updater(pair,_targets,key):
+            """
+            keys: 'catcat', 'numnum','numcat'
+            """
+            if ( (not _targets) or (pair[0] in _targets) ) :
+                if self.target_cols_with_significant_matches_and_not_significant.get(pair[0],None) is None:
+                    self.target_cols_with_significant_matches_and_not_significant[pair[0]] = self._blank_target_dict()                                                                                  
+                    self.target_cols_with_significant_matches_and_not_significant[pair[0]]['assumptions_not_met'][key].append(pair[1]) 
+                elif pair[1] not in self.target_cols_with_significant_matches_and_not_significant[pair[0]]['assumptions_not_met'][key]:
+                    self.target_cols_with_significant_matches_and_not_significant[pair[0]]['assumptions_not_met'][key].append(pair[1])                
+            if ( (not _targets) or (pair[1] in _targets) ) :
+                if self.target_cols_with_significant_matches_and_not_significant.get(pair[1],None) is None:
+                    self.target_cols_with_significant_matches_and_not_significant[pair[1]] = self._blank_target_dict()
+                    self.target_cols_with_significant_matches_and_not_significant[pair[1]]['assumptions_not_met'][key].append(pair[0]) 
+                elif pair[0] not in self.target_cols_with_significant_matches_and_not_significant[pair[1]]['assumptions_not_met'][key]:
+                    self.target_cols_with_significant_matches_and_not_significant[pair[1]]['assumptions_not_met'][key].append(pair[0])  
+            return  
+          
+          
         for instructions in test_instructions_list:
             # returns lists: [[num, cat, test],[],...], [[num, cat],[],...] Note there is no test in fail to reject: not_significant
-            significant , not_significant = self._categorize_bivariate_tests_as_rej_or_failrej(test_df=test_df,
-                                                                                            test_instructions=instructions)
+            # where assumptions not met is [] if check_assumptions==False, or 'assumptions_met' not in test_df columns, or if none exist
+            significant , not_significant, assumptions_not_met_list = self._categorize_bivariate_tests_as_rej_or_failrej(test_df=test_df,
+                                                                                            test_instructions=instructions,
+                                                                                            check_assumptions=check_assumptions)
                 
             # use the test instrucitons to determine where to put each column: categorical or numeric
             samp_test=instructions[0][0]
-    
 
+            if assumptions_not_met_list:
+                if samp_test in ('pearson','spearman','kendall','welch','student'):
+                    _key = 'numnum'
+                elif samp_test in ('kruskal','anova'):
+                    _key = 'numcat'
+                elif samp_test in ('chi2'):
+                    _key = 'catcat'
+                if _key!='numcat':
+                    for pair in assumptions_not_met_list:
+                        assumptions_not_met_target_updater(pair,targets,_key)
+                    assumptions_not_met_update_list = [sorted(pair.copy()) for pair in assumptions_not_met_list if sorted(pair.copy()) not in self.assumptions_not_met[_key]]
+                else:
+                    for pair in assumptions_not_met_list:
+                        assumptions_not_met_target_updater(sorted(pair.copy()),targets,_key)
+                    assumptions_not_met_update_list = [pair for pair in assumptions_not_met_list if pair not in self.assumptions_not_met[_key]]
+                self.assumptions_not_met[_key]+=assumptions_not_met_update_list
+    
             # store relationships and test for each column
             # map col_a and col_b to target col's value_dict in self.target_cols_with_significant_matches_and_not_significant
             # begin with significant relationships                                                                            
@@ -289,7 +388,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     right_destination='significant_numeric_relationships'
                     right_test_destination = 'significant_numeric_tests'
                     # update model only if not already included in model
-                    self.above_threshold_corr_numnum = class_instance_updater(significant, self.above_threshold_corr_numnum, sort_them=True)                       
+                    self.above_threshold_corr_numnum = class_instance_updater(significant, self.above_threshold_corr_numnum, sort_them=True)              
                       
                 elif samp_test in ('kruskal','anova'):
                     left_destination='significant_numeric_relationships'
@@ -297,8 +396,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     right_destination='significant_categoric_relationships'
                     right_test_destination = 'significant_categoric_tests'
                     # update model only if not already included in model
-                    self.reject_null_catnum = class_instance_updater(significant, self.reject_null_catnum, sort_them=False)  
-                    
+                    self.reject_null_catnum = class_instance_updater(significant, self.reject_null_catnum, sort_them=False)        
+
                 elif samp_test in ('chi2'):
                     left_destination='significant_categoric_relationships'
                     left_test_destination = 'significant_categoric_tests'
@@ -307,9 +406,15 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     # update model only if not already included in model
                     self.reject_null_catcat = class_instance_updater(significant, self.reject_null_catcat, sort_them=True)                     
 
+                            
                 else:
                     raise ValueError(f'{samp_test} not recognized as a test type. Recognized are: pearson,spearman,kendall,welch,student,kendall,anova,chi2')
-                
+                #############################################################################################
+                # there is some chance of recalculating pairs such as if one is target adn the other isn't, then 
+                # a secong call is made targeting the previous non-target
+                # but it is simple here because the target is tested agains all posible, the non-target is only test agains the target
+                # math could be relplaced with member searches that locate previous targets that paired w curr target but were not recorded for curr target
+                #############################################################################################
                 for pair_test in significant:
                     # initialize targets in the dict if the aren't already initialized
                     left_col, right_col, test_dash_tests = pair_test[0], pair_test[1], pair_test[2]
@@ -387,7 +492,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 self.target_cols_with_significant_matches_and_not_significant[right_col]['target_dtype']=['categoric']
                         if left_col not in self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination]:
                             self.target_cols_with_significant_matches_and_not_significant[right_col][left_destination].append(left_col)
-        return
+        return self
 
     #######################################################################################
     # A FUNCTION TO PROCESS CATEGORIC AND NUMERIC TARGETS
@@ -457,7 +562,17 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         and a list of [True, False, ...] that coresponds to (input, or self.fail_to_reject_null_catcat)
         """
 
-     
+        # a function to retrieve the index if exists
+        def index_or_None(member:str,lst:list):
+            """
+            """
+            res = None
+            for ind,val in enumerate(lst):
+                if val == memeber:
+                    res=ind
+                    break
+                return res
+
         # determine what pairs to test
         if pairs_list is None:
             pairs = self.reject_null_catcat
@@ -470,18 +585,6 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         # where new oder always has supercat first
         list_reordered = []
         for pair in pairs:
-            """
-            # see if the pair has already been fit
-            # check both values to see if they are already tested positive
-            if ((pair[0] in self.target_cols_with_significant_matches_and_not_significant[pair[1]]['paired_to_a_supercategory']) and (pair[1] in self.target_cols_with_significant_matches_and_not_significant[pair[0]]['paired_to_a_subcategory'])):
-                continue
-            elif ((pair[0] in self.target_cols_with_significant_matches_and_not_significant[pair[1]]['paired_to_a_subcategory']) and (pair[1] in self.target_cols_with_significant_matches_and_not_significant[pair[0]]['paired_to_a_supercategory'])):
-                continue
-            """
-            # check to see if they are not positive but have been tested
-            if sorted(pair.copy()) in self.has_called_fit_supercat_subcat_pairs: 
-                continue
-
             first_way=self.evidence_is_supercat_given_subcat(data, pair[0], pair[1])
             first_way=(first_way<=max_evidence)
             second_way=False
@@ -517,6 +620,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                  categoric_columns=None,
                                  numeric_target:list|tuple|str|None=None,
                                  categoric_target:list|tuple|str|None=None,
+                                cols_to_exclude_from_targets:str|list|None=None,
+                                check_assumptions:bool|None=None,
+                                anova_assumption_check_params:dict|None=None,
+                                kruskal_assumption_check_params:dict|None=None,
+                                chi2_assumption_check_params:dict|None=None
                                  ):
         """
         parameters:
@@ -539,6 +647,16 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                         and can be used in to process multivariate relations beyond bivariate, 
                             but only bivariate is processid within this function
         """
+        if anova_assumption_check_params is None:
+            anova_assumption_check_params=self.anova_assumption_check_params
+        if kruskal_assumption_check_params is None:
+            kruskal_assumption_check_params=self.kruskal_assumption_check_params
+        if chi2_assumption_check_params is None:
+            chi2_assumption_check_params=self.chi2_assumption_check_params
+
+        if check_assumptions is None:
+            check_assumptions = self.check_assumptions 
+
         # compute the statistic df to get p-values and correlations
         test_df = self.multi_test_column_comparison(
                                 df,
@@ -548,7 +666,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 numeric_columns=numeric_columns,
                                 categoric_columns=categoric_columns,
                                 numeric_target=numeric_target,
-                                categoric_target=categoric_target 
+                                categoric_target=categoric_target,
+                                cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                check_assumptions=check_assumptions,
+                                anova_assumption_check_params=anova_assumption_check_params,
+                                kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                chi2_assumption_check_params=chi2_assumption_check_params 
                                 )
         # identify target(s) if present
         targets = self._combine_targets(numeric_target=numeric_target, 
@@ -556,10 +679,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
 
         # compute significant and not-significant bivariate pairs -- w/ test for significant pairs
         self._update_model_with_test_df_to_col_pairs_and_cols_as_targets(test_df=test_df,
-                                                                        targets=targets)
+                                                                        targets=targets,
+                                                                        check_assumptions=check_assumptions)
         # update class object that tracks variables that have been fit
         if targets:
-            t_update = set(i for i in targets)
+            t_update = set(targets)
         else: 
             t_update = set()
             if (self.catnum_meth_alpha_above is not None) or ((self.numnum_meth_alpha_above is not None) and (self.catcat_meth_alpha_above is not None)):
@@ -574,7 +698,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     t_update.update(cats)                              
         self.has_called_fit_column_relationships.update(t_update)
 
-        return
+        return self
     
     #######################################################################################
     # A FUNCTION TO TEST GOODNESS OF FIT FOR UNIFORM DISTRIBUTION
@@ -583,7 +707,15 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         
     def fit_goodness_of_fit_uniform(self,
                                     df:pd.DataFrame,
-                                    categoric_columns:str|list|None=None):
+                                    categoric_columns:str|list|None=None,
+                                    dropna:bool|None=None,
+                                    check_assumptions:bool|None=None):
+        """
+        """
+        if dropna is None:
+            dropna=self.dropna_cats
+        if check_assumptions is None:
+            check_assumptions = self.check_assumptions
         
         # avoid refitting
         if not categoric_columns:
@@ -594,16 +726,34 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                                                             df,
                                                                             cat_alpha_above=self.good_of_fit_uniform_test_instrucions,
                                                                             categoric_columns=categoric_columns,
-                                                                            expected_probs=None)
+                                                                            dropna=dropna,
+                                                                            check_assumptions=check_assumptions)
         good_of_fit_threshold=self.good_of_fit_uniform_test_instrucions[0]
-        # reject
-        reject_null_gof                  = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['P-value']<good_of_fit_threshold]['category'].values))
+        # reject and fail to reject
+        if check_assumptions==False:
+            # reject
+            reject_null_gof                  = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['P-value'] <good_of_fit_threshold]['category'].values))
+            # fail to reject
+            fail_to_reject_null_gof          = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['P-value']>=good_of_fit_threshold]['category'].values))
+        else:
+            # reject
+            reject_null_gof                  = set(list(good_of_fit_uniform_df.loc[(good_of_fit_uniform_df['P-value'] <good_of_fit_threshold) & (good_of_fit_uniform_df['assumptions_met']!=False)]['category'].values))
+            # fail to reject
+            fail_to_reject_null_gof          = set(list(good_of_fit_uniform_df.loc[(good_of_fit_uniform_df['P-value']>=good_of_fit_threshold) & (good_of_fit_uniform_df['assumptions_met']!=False)]['category'].values))
+            assumptions_not_met              = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['assumptions_met']==False]['category'].values))
+            # assumptions_not_met              = assumptions_not_met.difference(reject_null_gof)
+            # assumptions_not_met              = assumptions_not_met.difference(fail_to_reject_null_gof)
+            self.assumptions_not_met['num'].update(assumptions_not_met) 
+            # update targets dict
+            for col in assumptions_not_met:
+                if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
+                    self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
+                self.target_cols_with_significant_matches_and_not_significant[col]['cat']=[col]
+                
         # track reject
         self.reject_null_good_of_fit.update(reject_null_gof)
         # track that what's been called
         self.has_called_fit_goodness_of_fit_uniform.update(reject_null_gof)
-        # fail to reject
-        fail_to_reject_null_gof          = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['P-value']>=good_of_fit_threshold]['category'].values))
         # track fail
         self.fail_to_reject_null_good_of_fit.update(fail_to_reject_null_gof)
         # track that what's been called
@@ -620,7 +770,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
             if col not in self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']:
                 self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('fail_to_reject_uniform')
-        return  # exit the function
+        return  self
 
     #######################################################################################
     # A FUNCTION TO FIT MULTIVARIATE COLUMN RELATIONSHIPS FOR COLUMNS THAT WERE NOT INCLUDED IN BIVARIATE RELATIONSHIPS IN fit_column_relationships()
@@ -634,7 +784,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                               catigorci_targets:bool=True,  # if True, targets are from self.target_cols_with_significant_matches_and_not_significant
                                               max_n_combination_size:int|None=3,
                                               max_n_combinations:int|None=50_000,
-                                              min_combo_size:int=2
+                                              min_combo_size:int=2,
+                                            cols_to_exclude_from_targets:str|list|None=None,
+                                            check_assumptions:bool|None=None,
+                                            anova_assumption_check_params:dict|None=None,
+                                            kruskal_assumption_check_params:dict|None=None,
+                                            chi2_assumption_check_params:dict|None=None
                                               ):
         """
         this iterates through 
@@ -666,6 +821,21 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     min_combo_size defaults to minimum lenght of combos == 2, but it can take values other than 2
                     mulitvariate_test_significant_in_many_groups False removes any column from potential columns as soon as it is tested in a group that has a significant relationship 
         """
+        default_anova = self.anova_assumption_check_params.copy()
+        if anova_assumption_check_params is not None:
+            default_anova.update(anova_assumption_check_params)
+        anova_assumption_check_params = default_anova
+        default_kruskal =self.kruskal_assumption_check_params.copy()
+        if kruskal_assumption_check_params is not None:
+            default_kruskal.update(kruskal_assumption_check_params)
+        kruskal_assumption_check_params = default_kruskal
+        default_chi = self.chi2_assumption_check_params.copy()
+        if chi2_assumption_check_params is not None:
+            default_chi.update(chi2_assumption_check_params)
+        chi2_assumption_check_params = default_chi
+
+        if check_assumptions is None:
+            check_assumptions = self.check_assumptions 
         
         # fit_column_relationships() has to have been called first:
         if not self.has_called_fit_column_relationships:
@@ -711,7 +881,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     curr_combo = list(curr_combo)
 
                     # concatinate the curr_combo columns into one series, pair it in a dataframe with the target,c
-                    header_divider                                                 = self.concatinated_multivariate_header_divider  # how concatinated multivariate tests' headers will seperate columns
+                    header_divider                                                 = self.multivariate_concatination_delimiter  # how concatinated multivariate tests' headers will seperate columns
                     df_to_use_in_concat_func                                       = df[curr_combo].copy()
                     concated_feature_col                                           = self._concatenate_columns_axis_1(dataframe=df_to_use_in_concat_func,
                                                                                                                     column_combo=curr_combo,
@@ -730,7 +900,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         numeric_columns=None,
                                         categoric_columns=None,
                                         numeric_target=target,
-                                        categoric_target=None 
+                                        categoric_target=None ,
+                                        cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                        check_assumptions=check_assumptions,
+                                        anova_assumption_check_params=anova_assumption_check_params,
+                                        kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                        chi2_assumption_check_params=chi2_assumption_check_params
                                         )
                     elif self.target_cols_with_significant_matches_and_not_significant[target]['target_dtype'] == ['categoric']: 
                         test_instructions = self.catcat_meth_alpha_above
@@ -742,19 +917,27 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         numeric_columns=None,
                                         categoric_columns=None,
                                         numeric_target=None,
-                                        categoric_target=target 
+                                        categoric_target=target ,
+                                        cols_to_exclude_from_targets=cols_to_exclude_from_targets,
+                                        check_assumptions=check_assumptions,
+                                        anova_assumption_check_params=anova_assumption_check_params,
+                                        kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                        chi2_assumption_check_params=chi2_assumption_check_params
                                         )
                     else:
                         raise ValueError(f"No data type detected for {target}: self.target_cols_with_significant_matches_and_not_significant[target]['target_dtype'] should be one of ['categoric'] or ['numeric']")
                     if test_df.shape[0]>0: 
-                        significant , not_significant = self._categorize_bivariate_tests_as_rej_or_failrej(test_df=test_df,
-                                                                        test_instructions=test_instructions)
+                        significant , not_significant, assumptions_not_met_list = self._categorize_bivariate_tests_as_rej_or_failrej(test_df=test_df,
+                                                                                                                                    test_instructions=test_instructions,
+                                                                                                                                    check_assumptions=check_assumptions)
                         if significant:  #significant looks like: [[col_a,col_b,test(s)],[...],[...],...] But in this case shorter
                             # the columns are already known: curr_combo: so just extract the test
-                            curr_test=significant[0][2]
+                            curr_test=''
+                            for info in significant:
+                                curr_test+=info[2]
                             self.target_cols_with_significant_matches_and_not_significant[target]['significant_categoric_combination_group_relationship'].append(sorted(curr_combo.copy()))
                             self.target_cols_with_significant_matches_and_not_significant[target]['significant_categoric_combination_group_relationship_test_type'].append(curr_test)
-                            # same as in self._prepare_target_plot_data(): [[target_column,'categoric'],col,test]
+                            # same as in self._prepare_target_plot_data(): [[target_column,'categoric'],col,test]-> [[targ, dtype],sorted(combo),test]
                             item_to_append_to_overall_model_reject_combo_matches = [[target,self.target_cols_with_significant_matches_and_not_significant[target]['target_dtype'][0]],sorted(curr_combo.copy()),curr_test]  
                             self.significant_multivariate_combinations.append(item_to_append_to_overall_model_reject_combo_matches)
                             # store columns that won't be passed to the next combo size
@@ -763,6 +946,18 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 seen_and_significant.update(curr_combo)
                             else:
                                 seen_and_significant=set(curr_combo)
+                        if assumptions_not_met_list:
+                            # the columns are already known: curr_combo: so just extract the test
+                            curr_test=''
+                            for info in significant:
+                                curr_test+=info[2]
+                            _key = self.target_cols_with_significant_matches_and_not_significant[target]['target_dtype'][0]
+                            loc_key = _key[:3]+'multicat'
+                            item_to_append_to_model_assumptions_not_met = [[target,_key],sorted(curr_combo.copy()),curr_test]                        
+                            if item_to_append_to_model_assumptions_not_met not in self.assumptions_not_met[loc_key]:
+                                self.assumptions_not_met[loc_key].append(item_to_append_to_model_assumptions_not_met)
+                            if item_to_append_to_model_assumptions_not_met not in self.target_cols_with_significant_matches_and_not_significant[target]['assumptions_not_met'][loc_key]:
+                                self.target_cols_with_significant_matches_and_not_significant[target]['assumptions_not_met'][loc_key].append(item_to_append_to_model_assumptions_not_met)
                 # after each size, remove combos that have already been in a significant group from 'not_significant_categorics' 
                 # the idea is that, otherwise, these groups would re-apear with additional columns that may not really contribute 
                 # risk of loss of information is already minimized for cases of replacement because col_a can already be paired as both (col_a,col_b) and (col_a,col_c) 
@@ -792,16 +987,16 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             if curr_combo_size==min_combo_size:
                 if curr_n_possible_combinations > max_n_combinations:
                     # consider raising max_n_combinations
-                    warn(f"\nNo combinations considered for {target.propper()}.\nConsider increasing max_n_combinations.\n max_n_combinations == {max_n_combinations}, but found {curr_n_possible_combinations} combinations @ min combo size == {min_combo_size}.")
+                    warn(f"\nNo combinations considered for {target.title}.\nConsider increasing max_n_combinations.\n max_n_combinations == {max_n_combinations}, but found {curr_n_possible_combinations} combinations @ min combo size == {min_combo_size}.")
                 elif population_size<curr_combo_size:
-                    warn(f"\nNo combinations considered for {target.propper()}. \nPopulation_size == {population_size}, but minimum combo size is {min_combo_size}")
+                    warn(f"\nNo combinations considered for {target.title()}. \nPopulation_size == {population_size}, but minimum combo size is {min_combo_size}")
                 # indicate that this target never entered the loop, and biggest size of combos that were checked: 0
                 self.target_cols_with_significant_matches_and_not_significant[target]['max_n_variates_paired_with']=[0]
             else:
                 #add/update a key,value pair to indicate that this target did enter the loop, and biggest size of combos tested
                 self.target_cols_with_significant_matches_and_not_significant[target]['max_n_variates_paired_with']=[biggest_combo_size_checked]
 
-        return        
+        return self       
     
     #######################################################################################
     # A FUNCTION TO REMOVE SUBCAT PAIRS FROM REGECT NULL CAT-TO-CAT RESULTS
@@ -812,97 +1007,136 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
     def fit_supercat_subcat_pairs(self,
                                     data:pd.DataFrame,
                                     max_evidence:float=0.2,  
-                                     pairs_list:list|tuple|None=None ):
+                                     pairs_list:list|tuple|None=None,
+                                      isolate_super_subs:bool|None=None ):
         """
         calls:  _are_supercat_subcats()
         to detect spercategory-subcategory relationships
         then updates class objects:
             adds to self.supercategory_subcategory_pairs
             removes rej null categoric from individual categorical targets and adds to paired_to_supercat (if target is subcat), or to paired_to_subcat(if target is supercat)
-        Variables are tested in both directions  -->Subcat -->supercat       
+        Variables are tested in both directions  -->Subcat -->supercat     
+        if isolate_super_subs == False, super and sub will be added to appropriate storages, but not removed from cat bivariate storages  
         """
         # fit_column_relationships() has to have been called first:
         if not self.has_called_fit_column_relationships:
             raise ValueError("fit_column_relationships() needs to run before this function.")
         
+        if isolate_super_subs is None:
+            isolate_super_subs=True
+        
         sup_subs, true_false_list =  self._are_supercat_subcats(data,
                                            max_evidence=max_evidence,  
                                            pairs_list=pairs_list) 
-        """
-        # NOT USED IN THIS VERSION
-        # a helper function that verifies membership
-        def find_member(search_val, list_to_search):
-            '''
-            reurns an index location of the search_val in the list_to_search, or returns None
-            '''
-            location = None
-            for possible_location, possible_value in enumerate(list_to_search):
-                    if search_val==possible_value:
-                        location=possible_location
-                        break
-            return location  
-        """          
+        if isolate_super_subs==True:
+            def find_member(search_val:str|list, 
+                            list_to_search:list, 
+                            search_val_type:str, 
+                            search_val_len:int|None=None):
+                """
+                reurns an index location of the search_val in the list_to_search, or returns None
+                where search_val_type can be 'string' or 'list'
+                it is assumed the vals in list_to_search are the same
+                search_val_len is used in cas of list such as search_val==list_to_search[index][:search_val_len] such as to exclude test type when searching self.reject_null_catcat
+                if search_val_len is None, only exact matches will be considered
+                """
+                location = None
+                if (search_val_type=='string') or (search_val_len is None):
+                    for possible_location, possible_value in enumerate(list_to_search):
+                            if search_val==possible_value:
+                                location=possible_location
+                                break
+                elif search_val_type=='list':
+                    for possible_location, possible_value in enumerate(list_to_search):
+                            if search_val==possible_value[:search_val_len]:
+                                location=possible_location
+                                break
+                return location  
+       
 
 
         for tf_bool, cols in zip(true_false_list,sup_subs):
             # store record of fit columns in class.The pairs should already have been filtered in self._are_supercat_subcats()
-            self.has_called_fit_supercat_subcat_pairs.append(sorted(cols.copy()))
+            if ((isolate_super_subs==False) or (tf_bool==False)) and (sorted(cols) not in self.has_called_fit_supercat_subcat_pairs):
+                self.has_called_fit_supercat_subcat_pairs.append(sorted(cols.copy()))
             if tf_bool==True:
-                self.supercategory_subcategory_pairs.append(cols)
-                """
-                # THIS DOESN'T WORK BECAUSE THER IS A TEST LISTED IN INDEX 2 AFTER EACH PAIR IN: self.reject_null_catcat
-                # BESIDES, IT IS PROBABLY BETTER THIS WAY: pairs in 2 places
+                if cols not in self.supercategory_subcategory_pairs:
+                    self.supercategory_subcategory_pairs.append(cols)
+
                 # >remove supercat subcat pairs from self.reject_null_catcat  the next loop stores them based on targets
-                index_loc = find_member(sorted(cols.copy()), self.reject_null_catcat)
-                if index_loc is not None:
-                    try:
-                        discard = self.reject_null_catcat.pop(index_loc)
-                    except:
-                        if index_loc<len(self.reject_null_catcat)-1:
-                            self.reject_null_catcat = self.reject_null_catcat[:index_loc] + self.reject_null_catcat[index_loc+1:]
-                        else:
-                            self.reject_null_catcat = self.reject_null_catcat[:index_loc]   
-                """         
+                if isolate_super_subs==True:
+                    index_loc = find_member(sorted(cols.copy()), 
+                                                    self.reject_null_catcat, 
+                                                    search_val_type='list', 
+                                                    search_val_len=2)
+                    if index_loc is not None:
+                        try:
+                            discard = self.reject_null_catcat.pop(index_loc)
+                        except:
+                            if index_loc<len(self.reject_null_catcat)-1:
+                                self.reject_null_catcat = self.reject_null_catcat[:index_loc] + self.reject_null_catcat[index_loc+1:]
+                            else:
+                                self.reject_null_catcat = self.reject_null_catcat[:index_loc]   
+       
 
                 #identify each
                 super, sub = cols[0], cols[1]
+                super_test, sub_test = '', '' 
+
+                if isolate_super_subs==True:
+                # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
+                    if super in self.has_called_fit_column_relationships:
+                        sub_index=find_member(sub, 
+                                            self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'], 
+                                                search_val_type='string', 
+                                                search_val_len=None)
+                        if sub_index is not None:
+                            # capture test
+                            sub_test = self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][sub_index]
+
+                            try:
+                                discard_col=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'].pop(sub_index)
+                                discard_test=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'].pop(sub_index)
+                            except:
+                                if sub_index<(len(self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'])-1):
+                                    self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][:sub_index]+self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][sub_index+1:]
+                                    self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][:sub_index]+self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][sub_index+1:]
+                                else:
+                                    self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][:sub_index]
+                                    self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][:sub_index]
+                        
                 
-                # reset supercat  [remove from reg null and add to paired to a subcategory]
-                
-                self.target_cols_with_significant_matches_and_not_significant[super]['paired_to_a_subcategory'].append(sub)
-                """
-                # LEAVE PAIRS IN TWO PLACES: paired_to_a_subcategory & 'significant_categoric_relationships'
-                sub_index=find_member(sub, self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'])
-                if sub_index is not None:
-                    try:
-                        discard_col=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'].pop(sub_index)
-                        discard_test=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'].pop(sub_index)
-                    except:
-                        if sub_index<(len(self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'])-1):
-                            self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][:sub_index]+self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][sub_index+1:]
-                            self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][:sub_index]+self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][sub_index+1:]
-                        else:
-                            self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_relationships'][:sub_index]
-                            self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[super]['significant_categoric_tests'][:sub_index]
-                """
-                # reset subcat [remove from rej null and add to paired to a supercategory]
-                self.target_cols_with_significant_matches_and_not_significant[sub]['paired_to_a_supercategory'].append(super)
-                """
-                # LEAVE PAIRS IN TWO PLACES: paired_to_a_supercategory & 'significant_categoric_relationships'
-                super_index=find_member(super, self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'])
-                if super_index is not None:
-                    try:
-                        discard_col=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'].pop(super_index)
-                        discard_test=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'].pop(super_index)
-                    except:
-                        if super_index<(len(self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'])-1):
-                            self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][:super_index]+self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][super_index+1:]
-                            self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][:super_index]+self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][super_index+1:]
-                        else:
-                            self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][:super_index]
-                            self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][:super_index]
-                """
-        return
+                    # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
+                    if sub in self.has_called_fit_column_relationships:
+                        super_index=find_member(super, 
+                                                self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'],
+                                                search_val_type='string', 
+                                                search_val_len=None)
+                        if super_index is not None:
+                            # capture test
+                            super_test = self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][super_index]
+
+                            try:
+                                discard_col=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'].pop(super_index)
+                                discard_test=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'].pop(super_index)
+                            except:
+                                if super_index<(len(self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'])-1):
+                                    self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][:super_index]+self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][super_index+1:]
+                                    self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][:super_index]+self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][super_index+1:]
+                                else:
+                                    self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships']=self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_relationships'][:super_index]
+                                    self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests']        =        self.target_cols_with_significant_matches_and_not_significant[sub]['significant_categoric_tests'][:super_index]
+                        
+                # UPDATE TARGETS by adding super/sub and tests
+                if (sub in self.has_called_fit_column_relationships) and (super not in self.target_cols_with_significant_matches_and_not_significant[sub]['paired_to_a_supercategory']):
+                    if super_test:
+                        self.target_cols_with_significant_matches_and_not_significant[sub]['paired_to_a_supercategory_tests'].append(super_test)
+                    self.target_cols_with_significant_matches_and_not_significant[sub]['paired_to_a_supercategory'].append(super)
+                if (super in self.has_called_fit_column_relationships) and (sub not in self.target_cols_with_significant_matches_and_not_significant[super]['paired_to_a_subcategory']):
+                    if sub_test:
+                        self.target_cols_with_significant_matches_and_not_significant[super]['paired_to_a_subcategory_tests'].append(sub_test)
+                    self.target_cols_with_significant_matches_and_not_significant[super]['paired_to_a_subcategory'].append(sub)
+        return self
     
 
     """
@@ -939,20 +1173,40 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 categoric_target=None,
                                 fit_good_of_fit:bool=True,
                                 fit_multivariates:bool=False,
-                                fit_supercat_subcats:bool=False
+                                fit_supercat_subcats:bool=False,
+                                check_assumptions:bool|None=None,
+                                anova_assumption_check_params:dict|None=None,
+                                kruskal_assumption_check_params:dict|None=None,
+                                chi2_assumption_check_params:dict|None=None,
+                                dropna_gof:bool|None=None
                                 ): 
         """
         parameters for manual entry of columns, and for targets
             numeric_columns=None,
             categoric_columns=None,
         """
-
+        default_anova = self.anova_assumption_check_params.copy()
+        if anova_assumption_check_params is not None:
+            default_anova.update(anova_assumption_check_params)
+        anova_assumption_check_params = default_anova
+        default_kruskal =self.kruskal_assumption_check_params.copy()
+        if kruskal_assumption_check_params is not None:
+            default_kruskal.update(kruskal_assumption_check_params)
+        kruskal_assumption_check_params = default_kruskal
+        default_chi = self.chi2_assumption_check_params.copy()
+        if chi2_assumption_check_params is not None:
+            default_chi.update(chi2_assumption_check_params)
+        chi2_assumption_check_params = default_chi
 
         self.fit_column_relationships( df=data,
                                 numeric_columns=numeric_columns,
                                 categoric_columns=categoric_columns,
                                 numeric_target=numeric_target,
-                                categoric_target=categoric_target
+                                categoric_target=categoric_target,
+                                check_assumptions=check_assumptions,
+                                anova_assumption_check_params=anova_assumption_check_params,
+                                kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                chi2_assumption_check_params=chi2_assumption_check_params
                                 )
         if fit_good_of_fit==True and (not ((numeric_target is not None) and (categoric_target is None))):
             if (categoric_target is None) and ( categoric_columns is None):
@@ -965,7 +1219,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     cat_cols=[cat_cols]                    
             self.fit_goodness_of_fit_uniform(
                                         df=data,
-                                        categoric_columns=cat_cols)        
+                                        categoric_columns=cat_cols,
+                                        dropna=dropna_gof,
+                                        check_assumptions=check_assumptions)        
         if fit_multivariates==True:
             # identify target(s) if present
             targets = self._combine_targets(numeric_target=numeric_target, 
@@ -973,6 +1229,10 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             fit_multivariate_args=self.multivariate_params
             self.fit_multivariate_column_relationships(df=data,
                                                 targets=targets,
+                                                check_assumptions=check_assumptions,
+                                                anova_assumption_check_params=anova_assumption_check_params,
+                                                kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                                chi2_assumption_check_params=chi2_assumption_check_params,
                                                 **fit_multivariate_args
                                                 )
         if (fit_supercat_subcats==True) and (not ((numeric_target is not None) and (categoric_target is None))):
@@ -1080,14 +1340,15 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         val['Target']=[key]
         # remove unwanted columns
         try:
-            del val['not_significant_numerics'], val['not_significant_categorics']
+            del val['assumptions_not_met'], val['not_significant_numerics'], val['not_significant_categorics']
         except:
             val.pop('not_significant_numerics',None)
             val.pop('not_significant_categorics',None)
+            val.pop('assumptions_not_met',None)
         # retrieve the max vector lenght
         mx_len = self._max_vec_in_dict(val)  #max(1,...) is unescesary, because val['Target'] is in the dict
         for k,v in val.items():        
-            # paw w original value
+            # pad w original value
             if k in ('Target','target_dtype','max_n_variates_paired_with'):
                 val[k]=self._value_pad_vector(mx_len, v)
             # NaN pad
@@ -1148,7 +1409,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             curr_dict = self._prep_key_value_for_df(k,v)
             curr_df   = self._dict_to_df(curr_dict)
             concat_list.append(curr_df)
-        print("Where 'MaxLenComboComparedTo' can vary depending on compute limits and number of possible combinations in combo sizes.\n'PartitionedBy' and 'Partitions' indicate supercategory-subcategory relationships that partition or are partitioned.\n'SignificantCounterPart(s)' is a combination or single column that shares a significant relationship according to the test(s).")
+        print("Where 'MaxLenComboComparedTo' can vary depending on compute limits and number of possible combinations in combo sizes.\n'PartitionedBy' and 'Partitions' indicate supercategory-subcategory relationships that partition or are partitioned.\n'SignificantCounterPart(s)' is a combination or single column that shares a significant relationship according to the test(s).\n'Test(s)' lists the test(s) used. If the testname is followed by a colon, that signals whether assumptions were met for that specifit test.")
         return pd.concat(concat_list)
 
 
@@ -1185,7 +1446,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         proportions=proportions,
                                         n_wide=n_wide,
                                         super_title=super_title)
-        return
+        return self
     
     #######################################################################################
     # A FUNCTION TO PLOT NUMERIC-TO-NUMERIC RELATIONSHIPS
@@ -1198,7 +1459,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         n_wide:int|tuple|list=(6,40,5),
                                         stacked_bars_when_max_bars_is_exceeded:bool=True,
                                         sorted:bool=False,
-                                        super_title:str|None="Categoric-To-Categoric Bivariates With Significant Relationships"):
+                                        super_title:str|None="Categoric-To-Categoric Bivariates - Reject Null"):
         """
         where if column_combinations is None, combinations from self.reject_null_catcat will be ploted. Otherwise combinations in column_combinations will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
@@ -1214,7 +1475,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                             stacked_bars_when_max_bars_is_exceeded=stacked_bars_when_max_bars_is_exceeded,
                             sorted=sorted,
                             super_title=super_title)
-        return
+        return self
     
     #######################################################################################
     # A FUNCTION TO PLOT NUMERIC-TO-NUMERIC RELATIONSHIPS
@@ -1226,7 +1487,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                        column_combos:list|tuple|None=None,
                                        plot_type:str='joint',
                                        linreg:bool=True,
-                                       super_title:str='Numeric Bivariates With Significant Relationships',
+                                       super_title:str='Numeric Bivariates With Significant Correlation(s)',
                                        plot_type_kwargs:dict|None=None,
                                        linreg_kwargs:dict|None=None):
         """
@@ -1245,7 +1506,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                             super_title=super_title,
                                             plot_type_kwargs=plot_type_kwargs,
                                             linreg_kwargs=linreg_kwargs)
-        return
+        return self
 
     #######################################################################################
     # A FUNCTION TO PLOT NUMERIC-TO-CATEGORIC RELATIONSHIPS
@@ -1258,7 +1519,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                             column_combos:list|tuple|None=None,
                                             plot_type:str='boxen', #box, boxen, or violin
                                             n_wide:int|tuple|list=(6,40,8),
-                                            super_title:str|None='Numeric-to-Categoric Bivariates With Significant Relationships'):
+                                            super_title:str|None='Numeric-to-Categoric Bivariates - Reject Null'):
         """
         where if column_combos is None, combinations from self.reject_null_catnum will be ploted. Otherwise combos in column_combos will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
@@ -1272,7 +1533,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                             plot_type=plot_type,
                                             n_wide=n_wide,
                                             super_title=super_title)
-        return
+        return self
     
     #######################################################################################
     # A FUNCTION TO PLOT SUPERCATEGORIES TO SUBCATEGORIES
@@ -1303,7 +1564,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         self.plot_supercats_subcats(data, 
                                 figure_map, 
                                 *figure_plot_params)
-        return
+        return self
 
 
     ############################################################################################
@@ -1329,17 +1590,17 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         'n_wide':(6,40,5),
                                         'stacked_bars_when_max_bars_is_exceeded':True,
                                         'sorted':False,
-                                        'super_title':"Categoric-To-Categoric Bivariates With Significant Relationships"},
+                                        'super_title':"Categoric-To-Categoric Bivariates - Reject Null"},
                   numnum_bivar_params:dict={
                                         'plot_type':'joint',
                                         'linreg':True,
-                                        'super_title':'Numeric Bivariates With Significant Relationships',
+                                        'super_title':'Numeric Bivariates With Significant Correlation(s)',
                                         'plot_type_kwargs':None,
                                         'linreg_kwargs':None},
                   catnum_bivar_params:dict={
                                         'plot_type':'boxen', #box, boxen, or violin
                                         'n_wide':(6,40,8),
-                                        'super_title':'Numeric-to-Categoric Bivariates With Significant Relationships'},
+                                        'super_title':'Numeric-to-Categoric Bivariates  - Reject Null'},
                   super_subcat_pairs_params:dict={                      
                                         'row_height':2,
                                         'cols_per_row':3,
@@ -1389,7 +1650,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                             **super_subcat_pairs_params)
         else:
             print('Plot Supercategory-Subcategory Partitions is set to False')
-        return
+        return self
     #######################################################################################
     # FUNCTIONS AND HELPER FUNCITONS TO PLOT COLUMN(S) AND RELATIONSHIPS INVOLVING A TARGET OR TARGETS
     # PLOTS VALUES STORED IN self.target_cols_with_significant_matches_and_not_significant
@@ -1481,6 +1742,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     not_uniform_or_reject_normal:bool=True,
                     reject_multivariates:bool=False,
                     auto_fit:bool=True,   # to call fit function(s) when needed
+                    check_assumptions:bool|None=None,
+                    dropna_gof:bool|None=None,
+                    anova_assumption_check_params:dict|None=None,
+                    kruskal_assumption_check_params:dict|None=None,
+                    chi2_assumption_check_params:dict|None=None,                                                
                     ): 
         
         """
@@ -1519,6 +1785,10 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     self.fit_column_relationships(df=data,
                                  numeric_target=numeric_target,
                                  categoric_target=categoric_target,
+                                check_assumptions=check_assumptions,                                
+                                anova_assumption_check_params=anova_assumption_check_params,
+                                kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                chi2_assumption_check_params=chi2_assumption_check_params
                                  )
                 else:
                     raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_column_relationships() needs to be called.')                
@@ -1528,7 +1798,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     multivariate_params= self.multivariate_params
                     self.fit_multivariate_column_relationships(df=data,
                                               targets=target,
-                                              **multivariate_params,
+                                                check_assumptions=check_assumptions,
+                                                anova_assumption_check_params=anova_assumption_check_params,
+                                                kruskal_assumption_check_params=kruskal_assumption_check_params,
+                                                chi2_assumption_check_params=chi2_assumption_check_params,
+                                                **multivariate_params,
                                               )
                 else:
                     raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_multivariate_column_relationships() needs to be called.')
@@ -1536,7 +1810,9 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             if (not_uniform_or_reject_normal==True) and (target_dtype in ('object','category')) and (target not in self.has_called_fit_goodness_of_fit_uniform):
                 if auto_fit==True:
                     self.fit_goodness_of_fit_uniform(data,
-                                    categoric_columns=target)
+                                    categoric_columns=target,
+                                    dropna=dropna_gof,
+                                    check_assumptions=check_assumptions)
                 else:
                     raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_goodness_of_fit_uniform() needs to be called.')
             # check if the target has been tested/fit for super_subcat relationships, and if auto_fit==True, call fit if needed           
@@ -1581,7 +1857,12 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     not_uniform_or_reject_normal:bool=True,
                     reject_multivariates:bool=False,
                     auto_fit:bool=True,   # to call fit function(s) when needed
-                    targets_share_plots:bool=False
+                    targets_share_plots:bool=False,
+                    check_assumptions:bool|None=None,
+                    dropna_gof:bool|None=None,
+                    anova_assumption_check_params:dict|None=None,
+                    kruskal_assumption_check_params:dict|None=None,
+                    chi2_assumption_check_params:dict|None=None,
                     ):
         """
         where data is the dataframe that holds values
@@ -1597,6 +1878,25 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 not_uniform_or_reject_normal: categorical variables that don't follow a uniform distribution {rejected normal distribution not yet supported for numeric},
                 reject_multivariates: where target columns are tested/compared to concatenated variables
         """
+
+        if dropna_gof is None:
+            dropna_gof=self.dropna_cats
+        if check_assumptions is None:
+            check_assumptions = self.check_assumptions
+
+        default_anova = self.anova_assumption_check_params.copy()
+        if anova_assumption_check_params is not None:
+            default_anova.update(anova_assumption_check_params)
+        anova_assumption_check_params = default_anova
+        default_kruskal =self.kruskal_assumption_check_params.copy()
+        if kruskal_assumption_check_params is not None:
+            default_kruskal.update(kruskal_assumption_check_params)
+        kruskal_assumption_check_params = default_kruskal
+        default_chi = self.chi2_assumption_check_params.copy()
+        if chi2_assumption_check_params is not None:
+            default_chi.update(chi2_assumption_check_params)
+        chi2_assumption_check_params = default_chi
+
         ## should be made into a class object and updated here such as [targ for targ in targets if targ not in self.target_dict.keys()) self.targets_dict.update(result)
         targets_dict =  self._fit_target_visualizations(
                     data=data,
@@ -1608,6 +1908,11 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                     not_uniform_or_reject_normal=not_uniform_or_reject_normal,
                     reject_multivariates=reject_multivariates,
                     auto_fit=auto_fit,   # to call fit function(s) when needed
+                    check_assumptions=check_assumptions,
+                    dropna_gof=dropna_gof,
+                    anova_assumption_check_params=anova_assumption_check_params,
+                    kruskal_assumption_check_params=kruskal_assumption_check_params,
+                    chi2_assumption_check_params=chi2_assumption_check_params,
                     )
         # plot targets on one plot per plot type
         if targets_share_plots==True:
@@ -1728,4 +2033,4 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                     catnum_bivar=reject_catnum,
                                     super_subcat_pairs=is_super_or_subcat)
                 print('= = = = = '*20)
-        return
+        return self

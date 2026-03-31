@@ -493,7 +493,7 @@ class PlotClass:
 
         #create figure
         num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))
+        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
@@ -567,6 +567,7 @@ class PlotClass:
                 plt.grid()
             curr_row+=1
             available_row_start_index = 0
+        #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
 
@@ -604,17 +605,17 @@ class PlotClass:
                                                             univariate=True)  # univariate True because only cat cols are counted as n_bars
         #create figure
         num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))
+        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
                     ncols=n_wide[0],
-                    #height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=[1 for i in range(num_rows)], 
                     hspace=0.6,
                     wspace=0.6
                 )
         # super title
-        plt.suptitle(super_title,fontsize=25)
+        plt.suptitle(super_title+'\n\n',fontsize=25)
         # adjust suptitle position to avoid excessive white space issues
         fig.subplots_adjust(top=0.92)
         # fill rows
@@ -650,6 +651,7 @@ class PlotClass:
                     ax.set_ylabel(y_label)
                     plt.grid()
             available_row_start_index = 0
+        #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
 
@@ -778,7 +780,7 @@ class PlotClass:
         #create figure
         num_rows=(len(column_combos)//2)+(len(column_combos)%2)
         num_cols=2 if len(column_combos)>1 else 1
-        fig = plt.figure(figsize=(num_cols*10,(row_height*num_rows)+2))
+        fig = plt.figure(figsize=(num_cols*10,(row_height*num_rows)+2))#,constrained_layout=True)
         # create gridspec
         outer = fig.add_gridspec(
                     nrows=num_rows,
@@ -811,6 +813,7 @@ class PlotClass:
             ax.set_ylabel(column_combos[index][1])
             ax.set_xlabel(column_combos[index][0])
             ax.grid()
+        #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
 
@@ -853,7 +856,7 @@ class PlotClass:
                                                             univariate=True)
         #create figure
         num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))
+        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
@@ -893,8 +896,129 @@ class PlotClass:
                 plt.grid()
             curr_row+=1
             available_row_start_index = 0
+        #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
+
+    # =====================================================================================================================================
+    # univariate_numerical_snapshot
+    # =====================================================================================================================================
+
+
+    def univariate_numerical_snapshot(self,
+                                        data:pd.DataFrame,
+                                        numerical:list|None,
+                                        n_wide:int|tuple|list=(6,40,4),
+                                        kde:bool|None=None,
+                                        super_title:str|None="Univariate Analysis of Numerical Variables",
+                                        plot_hypothetical_normal:bool|None=None, 
+                                        proportion:bool|None=None,
+                                        keep_bins_significant:dict|None|bool=None,):
+        """
+        plots a histplot
+            by default bins are decided by np.histogram_bin_edges bins='auto' which chooses the min(Sturges' Method, Freedman-Diaconis Rule)
+            ## custom binning is supported, such as if the varaible has failed to reject null relationships in AnalyzeDataset module, 
+            ## for custom bins, the BinnerClass should be used to provide a dictionary of header:bins in the **keep_bins_significant** parameter: {str(header):np.array|pd.Series(bins)}
+        kde==True includes a kernel density estimate of the data
+        plot_hypothetical_normal==True simulates a normal distribution to compare to the kde
+
+        numerical should be a list of columns or None. If None, numerical will be autodetected
+        proportions should be boolean. If False, then counts will be used
+        where n_wide determines horizontal or vertical bars
+            if type(n_wide)==int, horizontal bars and n_wide and indicates n plot_cols, 
+            otherwise vertical bars and n_wide is a list or tuple where 
+                    n_wide[0]=n cols on row, and 
+                    n_wide[1]=ideal_max bars on row, 
+                    <n_wide[2]=row_height or default is 5>
+
+        """
+        plt.rcdefaults()
+        if kde is None: 
+            kde=False
+        if proportion is None:
+            proportion = False
+        if plot_hypothetical_normal is None:
+            plot_hypothetical_normal=False
+
+        stat = 'count' if proportion in (None,False) else 'proportion'
+
+        columns=numerical if numerical is not None else list(data.select_dtypes(['number',np.number]).columns)
+
+        if (not keep_bins_significant) or (keep_bins_significant==False) or (keep_bins_significant is None):
+            keep_bins_significant = {}
+
+        # precompute bins for better compatability with self._columns_in_rows_map()
+        bin_df = pd.DataFrame({col:np.histogram_bin_edges(data[col],bins='auto') for col in columns if col not in keep_bins_significant.keys() else col:keep_bins_significant[col] })
+        
+        if plot_hypothetical_normal==True:          
+            normal = {header:np.random.normal(loc=df[header].mean(), scale=df[header].std(ddof=0), size=len(df[header].values)) for header in numerical}
+        if isinstance(n_wide,int):  # case where plots should have horizontal bars.
+            raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
+        else:                       # case where plots should have vertical bars.
+            row_height=5 if (len(n_wide)<3) else n_wide[2]
+            map_cols_to_rows, header_dict, alternate_plots = self._columns_in_rows_map(bin_df, 
+                                                                columns, 
+                                                                max_bars_on_row=n_wide[1], 
+                                                                num_columns_per_row=n_wide[0], 
+                                                                univariate=True)
+        #create figure
+        num_rows=len(map_cols_to_rows)
+        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
+        # create gridspec
+        gs = GridSpec(
+                    nrows=num_rows,
+                    ncols=n_wide[0],
+                    height_ratios=[1 for i in range(num_rows)], 
+                    hspace=0.5,
+                    wspace=0.45
+                )
+        # super title
+        plt.suptitle(super_title+'\n\n',fontsize=25)
+        # fill rows
+        curr_row=0
+        available_row_start_index = 0
+        for index in range(len(map_cols_to_rows)):
+            curr_row=index
+            row_map = map_cols_to_rows[index]
+            # fill columns on each row
+            for plot_width in row_map:
+                # fit axis for plot
+                ax = fig.add_subplot(gs[curr_row, available_row_start_index : available_row_start_index+plot_width])
+                # start position
+                available_row_start_index+=plot_width
+                # get plot data
+                plot_header = header_dict[str(plot_width)].pop()
+                if not isinstance(plot_header,str):
+                    plot_header=plot_header[0]
+                plot_data = data[plot_header]
+                plot_bins = bin_df[plot_header]
+                # plot
+                plot_title = plot_header
+                plt.title(plot_title)
+                sns.hisptplot(x=plot_data,
+                              bins=plot_bins,
+                              ax=ax,kde=kde, 
+                              stat=stat,
+                              label='Observed')
+                if plot_hypothetical_normal==True:
+                    weights = None if proportion==False else len(normal[plot_header])
+                    sns.kdeplot(x=normal[plot_header], 
+                                ax=ax, 
+                                weights=weights,
+                                label='Normal')
+                ax.tick_params(axis='x',rotation=45)
+                for label in ax.get_xticklabels():
+                    label.set_ha('right') 
+                y_label='Count' if proportions==False else 'Proportion'
+                ax.set_ylabel(y_label)
+                plt.grid()
+            curr_row+=1
+            available_row_start_index = 0
+        #plt.tight_layout()
+        plt.show()
+        plt.rcdefaults()
+
+
 
     # =====================================================================================================================================
     # plot supercategories to subcategories W/ a function to map them to a figure   
@@ -1000,7 +1124,8 @@ class PlotClass:
                                figure_map:list, 
                                row_height, 
                                cols_per_row, 
-                               y_tick_fontsize):
+                               y_tick_fontsize,
+                               super_title:str|None=None):
         """
         where figure map is ouptut[0] from prep_super_subcat_figure_maps()
         where figure map should be a list of lists: [
@@ -1012,15 +1137,19 @@ class PlotClass:
         row_height, cols_per_row, and y_tick_fontsize are passed from _map_subcats_supercat_to_fig()
         """
         plt.rcdefaults()
+        if super_title is None:
+            super_title= 'Super and Sub Categories - One Categoric Variable Partitions Another'
         total_rows = sum(i[0] for i in figure_map)
         n_cols = len(figure_map[0][3])
-        fig = plt.figure(figsize=(20,(row_height*total_rows)+2))
+        fig = plt.figure(figsize=(20,(row_height*total_rows)+2))#,constrained_layout=True)
+        plt.suptitle(super_title+'\n\n',fontsize=25)
         grid_specs = GridSpec(
                     nrows=total_rows,
                     ncols=n_cols,
                     height_ratios=[1 for i in range(total_rows)], 
                     hspace=0.7,
-                    wspace=0.45)
+                    wspace=0.45
+                    )
         
         supercat_header_start_row = 0
         for supercat_map in figure_map:
@@ -1051,6 +1180,7 @@ class PlotClass:
 
             # increment the start spot for the next supercat column
             supercat_header_start_row+=supercat_map[0]
+        #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
 

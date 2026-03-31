@@ -126,8 +126,7 @@ class Chi2:
         test of independence
         """
 
-        if check_assumptions is None:
-            check_assumptions = False
+
             
         if dropna is None:
             dropna=True
@@ -181,19 +180,19 @@ class Chi2:
         """
 
         if check_assumptions is None:
-            check_assumptions=False
+            check_assumptions=True
        
         if assumption_check_params:
             dropna=assumption_check_params.get('dropna', True)
         else:
-            dropna= True
+            dropna = True
 
         if columns is None:
-            columns=list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
+            columns = list(set(list(data.select_dtypes('object').columns)+list(data.select_dtypes('category').columns)))
         elif isinstance(columns,str):
-            columns=[columns]
-        if target==None:
-            combinations=list(itertools.combinations(columns,2))
+            columns = [columns]
+        if target == None:
+            combinations = list(itertools.combinations(columns,2))
         else: 
             if isinstance(target,str):
                 target=[target]
@@ -233,7 +232,7 @@ class Chi2:
         if len(res_dict)<1:
             return pd.DataFrame(columns=['category_a','category_b','P-value'])
         res = pd.DataFrame(res_dict)
-        res.columns=[i for i in ['category_a','category_b','P-value','assumptions_met'] if i in res.columns]
+        res = res[[i for i in ['category_a','category_b','P-value','assumptions_met'] if i in res.columns]]
         return res
 
     # a function that calls chi2 independence to examine and compare dataset columns
@@ -276,8 +275,7 @@ class Chi2:
         uniform distribution is calculated and used to test agains within the function
         input of expected or expected probabilities is not supported
         """
-        if check_assumptions is None:
-            check_assumptions = False
+ 
             
         if dropna is None:
             dropna=True
@@ -310,7 +308,7 @@ class Chi2:
         does not support input of expected or expected probabilities
         """
         if check_assumptions is None:
-            check_assumptions=False
+            check_assumptions=True
 
         if not columns:
             columns=list(data.select_dtypes(['object','category']).columns)
@@ -340,7 +338,7 @@ class Chi2:
                 res_dict['category'].append(col)
                 res_dict['P-value'].append(p)
         res = pd.DataFrame(res_dict)
-        res.columns=[i for i in ['category','P-value','assumptions_met'] if i in res.columns]
+        res = res[[i for i in ['category','P-value','assumptions_met'] if i in res.columns]]
         return res
 
 

@@ -5,10 +5,10 @@ import numpy as np
 import inspect
 
 try:
-    from .Utils_HypTests_and_Coefficients.ANOVA import ANOVA
-    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from .Utils_HypTests_and_Coefficients.Coefficient import Coefficient
-    from .Utils_HypTests_and_Coefficients.TTests import TTests
+    from utils.Utils_HypTests_and_Coefficients.ANOVA import ANOVA
+    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from utils.Utils_HypTests_and_Coefficients.Coefficient import Coefficient
+    from utils.Utils_HypTests_and_Coefficients.TTests import TTests
 except:
     from Utils_HypTests_and_Coefficients.ANOVA import ANOVA
     from Utils_HypTests_and_Coefficients.Chi2 import Chi2

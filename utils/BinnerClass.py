@@ -5,9 +5,9 @@ import warnings
 import itertools
 from itertools import combinations
 try:
-    from .CompareColumns import CompareColumns
+    from utils.CompareColumns import CompareColumns
 except(ModuleNotFoundError):
-    from .Utils_HypTests_and_Coefficients.CompareColumns import CompareColumns
+    from CompareColumns import CompareColumns
 
 
 class Bin(CompareColumns):
