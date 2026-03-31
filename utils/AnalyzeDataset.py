@@ -15,19 +15,24 @@ try:
     from utils.PlotClass import PlotClass
 except:
     from PlotClass import PlotClass
+try:
+    from utils.UnivariateNormal import UnivariateNormal
+except:
+    from UnivariateNormal import UnivariateNormal
 
 import pandas as pd
 import numpy as np
 from warnings import warn
 from itertools import combinations
 
-class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
+class AnalyzeDataset(CompareColumns, Chi2, PlotClass, UnivariateNormal):
 
     def __init__(self,
                  numnum_meth_alpha_above_instructions:list|tuple|None|bool=True, 
                  catnum_meth_alpha_above_instructions:list|tuple|None|bool=True, 
                  catcat_meth_alpha_above_instructions:list|tuple|None|bool=True,
                  good_of_fit_uniform_test_instrucions:list|tuple|None|bool=True,
+                 normal_test_instructions:list|tuple|None|bool            =True,
                  multivariate_concatination_delimiter:str|None=None,
                  continuous_ordinalized_suffix:str='-ADcont-Ordinalized',  #AD for AnalyzeDataset class, cont for continuous
                  continuous_binned_suffix:str='-ADcont-Binned',
@@ -37,7 +42,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                  multivariate_params:dict = {'max_n_combination_size':3,
                                        'max_n_combinations':50_000,
                                        'min_combo_size':2},
-                 supercat_subcat_params:dict = {'max_evidence':0.2},
+                 supercat_subcat_params:dict|None=None,
                  dropna_cats:bool|None=None,
                  check_assumptions:bool|None=None,
                  anova_assumption_check_params:dict|None=None,
@@ -66,8 +71,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         self.catnum_meth_alpha_above              = [('kruskal',0.05,None),('anova',0.05,None)] if catnum_meth_alpha_above_instructions == True else None if catnum_meth_alpha_above_instructions == False else catnum_meth_alpha_above_instructions # where variable is not like stat dataframe. dataframe has numric in column 0 and categoric in column 1
         self.catcat_meth_alpha_above              = [('chi2',0.05,None)] if catcat_meth_alpha_above_instructions == True else None if catcat_meth_alpha_above_instructions == False else catcat_meth_alpha_above_instructions
         self.good_of_fit_uniform_test_instrucions = (0.05,None) if good_of_fit_uniform_test_instrucions == True else None if good_of_fit_uniform_test_instrucions == False else good_of_fit_uniform_test_instrucions
+        self.normal_test_instrucitons             = (0.05,False) if normal_test_instructions == True else None if normal_test_instructions == False else normal_test_instructions
+
         self.multivariate_params                  = multivariate_params
-        self.supercat_subcat_params               = supercat_subcat_params
+        default_supercat_subcat_params            =   {'max_evidence':0.2,  'isolate_super_subs':False }
+        if supercat_subcat_params is not None:
+            default_supercat_subcat_params.update(supercat_subcat_params)
+        self.supercat_subcat_params               = default_supercat_subcat_params
         # HOW TO PROCESS DATA, 
         # presently check assumptions is only supported when categoric is involved, 
         # and dropna is automatic in numeric, but optional in categoric (pd.NA and np.nan become text: "NaN")  
@@ -93,11 +103,14 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         # keep track targets that have been fit   ---> can be used to filter targets in tests for future suport of piecemeal fitting-- such as when revising assumption handling in tests
         self.has_called_fit_column_relationships                   = set() 
         self.has_called_fit_goodness_of_fit_uniform                = set()
+        self.has_called_fit_normal                                 = set()
         self.has_called_fit_supercat_subcat_pairs                  = []  # this stores nested lists that have been sorted: [ sorted(list1), sorted(list2), ..., sorted(listn)]
         #                                                                  it doesn't store in order of supercategory subcategory
 
         # UNIVARIATE
         #numeric univariate columns
+        self.reject_null_normal             = set()
+        self.fail_to_reject_null_normal     = set()
         # PASS
         #categoric univariate columns
         self.reject_null_good_of_fit        = set()
@@ -153,7 +166,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 'max_n_variates_paired_with':[0],   #  int(biggest lenght of combo checked, default: [0]
                 'not_significant_numerics':[],
                 'not_significant_categorics':[],  # where columns that are grouped together to form significant relationships are ( intended at some point to be )removed and added to 'significant_categoric_relationship' as group(s)
-                'is_normal_or_uniform':[],   # for uniform tests: 'reject_uniform' or 'fail_to_reject_uniform'. For normal: UNSUPPORTED, but relevant in self._prepare_target_plot_data
+                'is_normal_or_uniform':[],   # for uniform tests: 'reject_uniform' or 'fail_to_reject_uniform'. For normal: 'reject_normal' or 'fail_to_reject_normal'
+                #                             relevant in self._prepare_target_plot_data
                 'assumptions_not_met':{'catcat':[],'numnum':[],'numcat':[],'num':[],'cat':[],'nummulticat':[],'catmulticat':[]}
                 }
     #---------------------------------------------------------------------------------------------------------------------------------
@@ -632,8 +646,6 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             numeric_columns, categoric_columns, numeric_target, categoric_target
                 are None by default but can be specified with lists (list or string for targets)
         this function  updates: 
-                self.reject_null_good_of_fit        
-                self.fail_to_reject_null_good_of_fit
                 self.above_threshold_corr_numnum   
                 self.below_threshold_corr_numnum   
                 self.reject_null_catnum             
@@ -748,7 +760,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             for col in assumptions_not_met:
                 if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
                     self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
-                self.target_cols_with_significant_matches_and_not_significant[col]['cat']=[col]
+                self.target_cols_with_significant_matches_and_not_significant[col]['assumptions_not_met']['cat']=[col]
                 
         # track reject
         self.reject_null_good_of_fit.update(reject_null_gof)
@@ -760,18 +772,78 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
         self.has_called_fit_goodness_of_fit_uniform.update(fail_to_reject_null_gof)
 
         # update target dict: self.target_cols_with_significant_matches_and_not_significant
-        for col in list(self.reject_null_good_of_fit):
-            if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
-                self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
-            if col not in self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']:
-                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('reject_uniform')
-        for col in list(self.fail_to_reject_null_good_of_fit):
-            if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
-                self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
-            if col not in self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']:
-                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform'].append('fail_to_reject_uniform')
+        for col in list(reject_null_gof):
+            if (col in self.has_called_fit_column_relationships) and (not self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']):
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']=['reject_uniform']
+        for col in list(fail_to_reject_null_gof):
+            if (col in self.has_called_fit_column_relationships) and (not self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']):
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']=['fail_to_reject_uniform']
         return  self
+    
+    #######################################################################################
+    # A FUNCTION TO TEST FOR NORMAL DISTRIBUTION
+    # UPDATES   self.reject_null_normal AND self.fail_to_reject_null_normal
+    #######################################################################################
+        
+    def fit_normal(self,
+                    df:pd.DataFrame,
+                    numeric_columns:str|list|None=None):
+        """
+        """
 
+        
+        # avoid refitting
+        if not numeric_columns:
+            numeric_columns = [ col for col in df.select_dtypes([np.number,'number']).columns if col not in self.has_called_fit_normal]
+        # test numeric vars against a normal distripution
+        normal_df = self.filterable_all_column_normality_test(df,
+                                                                cat_alpha_above=self.normal_test_instrucitons,
+                                                                numeric_columns=numeric_columns,
+                                                                cols_to_exclude_from_targets=None)        
+
+        normal_threshold=self.normal_test_instrucitons[0]
+        # reject and fail to reject
+        #if check_assumptions==False:  # NOT SUPPORTED AT THIS TIME
+        # reject
+        reject_null_normal                  = set(list(normal_df.loc[normal_df['P-value'] <normal_threshold]['numeric'].values))
+        # fail to reject
+        fail_to_reject_null_normal          = set(list(normal_df.loc[normal_df['P-value']>=normal_threshold]['numeric'].values))
+        """
+        # THIS ASSUMPTIONS SNIPPET IS COPPIED FROM GOODNESS OF FIT, SO WOULN'T WORK AS IS
+        else:
+            # reject
+            reject_null_gof                  = set(list(normal_df.loc[(normal_df['P-value'] <normal_threshold) & (normal_df['assumptions_met']!=False)]['category'].values))
+            # fail to reject
+            fail_to_reject_null_gof          = set(list(normal_df.loc[(normal_df['P-value']>=normal_threshold) & (normal_df['assumptions_met']!=False)]['category'].values))
+            assumptions_not_met              = set(list(normal_df.loc[normal_df['assumptions_met']==False]['category'].values))
+            # assumptions_not_met              = assumptions_not_met.difference(reject_null_gof)
+            # assumptions_not_met              = assumptions_not_met.difference(fail_to_reject_null_gof)
+            self.assumptions_not_met['num'].update(assumptions_not_met) 
+            # update targets dict
+            for col in assumptions_not_met:
+                if self.target_cols_with_significant_matches_and_not_significant.get(col,None)==None:
+                    self.target_cols_with_significant_matches_and_not_significant[col]=self._blank_target_dict()
+                self.target_cols_with_significant_matches_and_not_significant[col]['assumptions_not_met']['num']=[col]"""
+                
+        # track reject
+        self.reject_null_normal.update(reject_null_normal)
+        # track that what's been called
+        self.has_called_fit_normal.update(reject_null_normal)
+        # track fail
+        self.fail_to_reject_null_normal.update(fail_to_reject_null_normal)
+        # track that what's been called
+        self.has_called_fit_normal.update(fail_to_reject_null_normal)
+
+        # update target dict: self.target_cols_with_significant_matches_and_not_significant
+        for col in list(reject_null_normal):
+            if (not self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']) and (col in self.has_called_fit_column_relationships):
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']=['reject_normal']
+        for col in list(fail_to_reject_null_normal):
+            if (not self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']) and (col in self.has_called_fit_column_relationships):
+                self.target_cols_with_significant_matches_and_not_significant[col]['is_normal_or_uniform']=['fail_to_reject_normal']
+        return  self
+    
+    
     #######################################################################################
     # A FUNCTION TO FIT MULTIVARIATE COLUMN RELATIONSHIPS FOR COLUMNS THAT WERE NOT INCLUDED IN BIVARIATE RELATIONSHIPS IN fit_column_relationships()
     # This concatinates categoricat variables and performs Chi2, ANOVA, and Kruskal-Wallis tests
@@ -1023,7 +1095,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             raise ValueError("fit_column_relationships() needs to run before this function.")
         
         if isolate_super_subs is None:
-            isolate_super_subs=True
+            isolate_super_subs=False
         
         sup_subs, true_false_list =  self._are_supercat_subcats(data,
                                            max_evidence=max_evidence,  
@@ -1172,6 +1244,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                 numeric_target=None,
                                 categoric_target=None,
                                 fit_good_of_fit:bool=True,
+                                fit_normal:bool=True,
                                 fit_multivariates:bool=False,
                                 fit_supercat_subcats:bool=False,
                                 check_assumptions:bool|None=None,
@@ -1221,7 +1294,20 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         df=data,
                                         categoric_columns=cat_cols,
                                         dropna=dropna_gof,
-                                        check_assumptions=check_assumptions)        
+                                        check_assumptions=check_assumptions)   
+                 
+        if fit_normal==True and (not ((categoric_target is not None) and (numeric_target is None))):
+            if (numeric_target is None) and ( numeric_columns is None):
+                num_cols = None
+            elif (numeric_target is None):
+                num_cols = numeric_columns
+            else:
+                num_cols = numeric_target
+            if isinstance(num_cols,str):
+                    num_cols=[num_cols]  
+            self.fit_normal(df=data,
+                            numeric_columns=num_cols)
+
         if fit_multivariates==True:
             # identify target(s) if present
             targets = self._combine_targets(numeric_target=numeric_target, 
@@ -1447,7 +1533,43 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                         n_wide=n_wide,
                                         super_title=super_title)
         return self
-    
+
+
+    #######################################################################################
+    # A FUNCTION TO PLOT UNIVARIATE WHERE REJECT NULL NORMAL DISTRIBUTION
+    # PLOTS VALUES STORED IN self.reject_null_normal
+    #######################################################################################
+
+    def plot_non_normal_numeric(self,
+                                        data:pd.DataFrame,
+                                        numerical:list|tuple|None=None,
+                                        kde:bool|None=None,
+                                        proportions:bool=False,
+                                        n_wide:int|tuple|list=(6,40,4),
+                                        super_title:str|None="Univariate Numerical Variables - Reject Good-Of-Fit for Uniform",
+                                        force_significant_bin_edges:bool|None=None):
+        """
+        where if categorical is None, columns from self.reject_null_good_of_fit will be ploted. Otherwise columns in cateigorical will be ploted.
+        n_wide indicates (columns wide, max sum of bars on row, row height in inches)
+        """
+        if numerical is None:
+            numerical = list(self.reject_null_normal)
+            if not numerical:
+                return print("There are not any non-normal numerical variables stored in the model.\nEither none exist, or they haven't been fit.")
+        if force_significant_bin_edges==True:
+            keep_bins_significant = None #pass  # a function to populate this with arrays built with np.histogram_bin_edges arrays for relevant columns
+        else: keep_bins_significant=None
+        
+        self.univariate_numerical_snapshot(data=data,
+                                        numerical=numerical,
+                                        n_wide=n_wide,
+                                        kde=kde,
+                                        super_title=super_title,
+                                        proportions=proportions,
+                                        keep_bins_significant=keep_bins_significant)
+
+        return self
+        
     #######################################################################################
     # A FUNCTION TO PLOT NUMERIC-TO-NUMERIC RELATIONSHIPS
     # PLOTS VALUES STORED IN self.above_threshold_corr_numnum
@@ -1577,6 +1699,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
     def produce_all_plots(self,
                   data:pd.DataFrame,
                   cat_univar:list|tuple|None|bool=None,
+                  num_univar:list|tuple|None|bool=None,
                   catcat_bivar:list|tuple|None|bool=None,
                   numnum_bivar:list|tuple|None|bool=None,
                   catnum_bivar:list|tuple|None|bool=None,  # where in practice num is placed before cat
@@ -1604,7 +1727,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                   super_subcat_pairs_params:dict={                      
                                         'row_height':2,
                                         'cols_per_row':3,
-                                        'y_tick_fontsize':12}     ): 
+                                        'y_tick_fontsize':12} ,
+                  num_univar_params:dict = {
+                                        'kde':None,
+                                        'proportions':False,
+                                        'n_wide':(6,40,4),
+                                        'super_title':"Univariate Numerical Variables - Reject Good-Of-Fit for Uniform",
+                                        'force_significant_bin_edges':None}  ): 
         """
         where data is the dataframe values are taken from
         cat_univar, catcat_bivar, numnum_bivar, catnum_bivar, and super_subcat_pairs
@@ -1621,7 +1750,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                             categorical=cat_univar,
                                             **cat_univar_params)
         else:
-            print('Plot Univariate is set to False')
+            print('Plot Categoric Univariate is set to False')
+        if num_univar!=False:
+            self.plot_non_normal_numeric(data=data,
+                                        numerical=num_univar,
+                                        **num_univar_params)
+        else:
+            print('Plot Numeric Univariate is set to False')
         if catcat_bivar!=False:   
             self.plot_bivariate_categoric_categoric(
                                             data=data,  
@@ -1726,7 +1861,7 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 res = [target_column, match]
                 supersubcat.append(res)
         # if it's a univariate to plot
-        plottable_responses = ('fail_to_reject_uniform')  # potential to have normal distribution support too, but not supported at this time
+        plottable_responses = ('reject_uniform','reject_normal')  # potential to have normal distribution support too, but not supported at this time
         if (not_uniform_or_reject_normal==True) and any( result in plottable_responses for result in meta_dict['is_normal_or_uniform'] ):
                univariate.append(target_column)
         return  catnum, numnum, catcat, supersubcat, univariate, multivariate
@@ -1806,15 +1941,22 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                                               )
                 else:
                     raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_multivariate_column_relationships() needs to be called.')
-            # check if the target has been tested/fit for to a uniform distribution, and if auto_fit==True, call fit if needed            
-            if (not_uniform_or_reject_normal==True) and (target_dtype in ('object','category')) and (target not in self.has_called_fit_goodness_of_fit_uniform):
-                if auto_fit==True:
-                    self.fit_goodness_of_fit_uniform(data,
-                                    categoric_columns=target,
-                                    dropna=dropna_gof,
-                                    check_assumptions=check_assumptions)
-                else:
-                    raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_goodness_of_fit_uniform() needs to be called.')
+            # check if the target has been tested/fit for to a univariate distribution, and if auto_fit==True, call fit if needed            
+            if (not_uniform_or_reject_normal==True):
+                if  (target_dtype in ('object','category'))  and (target not in self.has_called_fit_goodness_of_fit_uniform):
+                    if (auto_fit==True):
+                        self.fit_goodness_of_fit_uniform(data,
+                                        categoric_columns=target,
+                                        dropna=dropna_gof,
+                                        check_assumptions=check_assumptions)
+                    else:
+                        raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_goodness_of_fit_uniform() needs to be called.')
+                elif  (target_dtype in (float,np.float64,'float64','float32','float16',np.number,'numeric','number'))  and (target not in self.has_called_fit_normal):
+                    if (auto_fit==True):
+                        self.fit_normal(data,
+                                    categoric_columns=target)
+                    else:
+                        raise RuntimeError(f'{target} has not been fit. Set auto_fit==True, or fit_normal() needs to be called.')
             # check if the target has been tested/fit for super_subcat relationships, and if auto_fit==True, call fit if needed           
             if (is_super_or_subcat==True) and (self.target_cols_with_significant_matches_and_not_significant[target]['target_dtype']==['categoric']):
                 if auto_fit==True:
@@ -1993,14 +2135,21 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
             if not reject_numnum: reject_numnum=False
             if not reject_catcat: reject_catcat=False
             if not is_super_or_subcat: is_super_or_subcat=False
-            if not not_uniform_or_reject_normal: not_uniform_or_reject_normal=False
+            if not not_uniform_or_reject_normal: #not_uniform_or_reject_normal=False
+                cat_univar, num_univar = False, False
+            else:
+                cat_univar=[col for col in not_uniform_or_reject_normal if col in self.reject_null_good_of_fit]
+                if not cat_univar: cat_univar=False
+                num_univar=[col for col in not_uniform_or_reject_normal if col in self.reject_null_normal]
+                if not num_univar: num_univar=False
             if not reject_multivariates: reject_multivariates=False
             # plot vars
             print(f"SIGNIFICANT VISUALIZATIONS FOR VARAIBLES IN:\n          {targets}")
             print('Non-Value Plots will Automatically be set to False')
             self.produce_all_plots(
                                 data=data,
-                                cat_univar=not_uniform_or_reject_normal,
+                                cat_univar=cat_univar,
+                                num_univar=num_univar,
                                 catcat_bivar=reject_catcat,
                                 numnum_bivar=reject_numnum,
                                 catnum_bivar=reject_catnum,
@@ -2019,7 +2168,13 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 if not reject_numnum: reject_numnum=False
                 if not reject_catcat: reject_catcat=False
                 if not is_super_or_subcat: is_super_or_subcat=False
-                if not not_uniform_or_reject_normal: not_uniform_or_reject_normal=False
+                if not not_uniform_or_reject_normal: #not_uniform_or_reject_normal=False
+                    cat_univar, num_univar = False, False
+                else:
+                    cat_univar=[col for col in not_uniform_or_reject_normal if col in self.reject_null_good_of_fit]
+                    if not cat_univar: cat_univar=False
+                    num_univar=[col for col in not_uniform_or_reject_normal if col in self.reject_null_normal]
+                    if not num_univar: num_univar=False
                 if not reject_multivariates: reject_multivariates=False
                 # call the plot function
                 print('= = = = = '*20)
@@ -2027,7 +2182,8 @@ class AnalyzeDataset(CompareColumns, Chi2, PlotClass):
                 print('Non-Value Plots will Automatically be set to False')
                 self.produce_all_plots(
                                     data=data,
-                                    cat_univar=not_uniform_or_reject_normal,
+                                    cat_univar=cat_univar,
+                                    num_univar=num_univar,
                                     catcat_bivar=reject_catcat,
                                     numnum_bivar=reject_numnum,
                                     catnum_bivar=reject_catnum,

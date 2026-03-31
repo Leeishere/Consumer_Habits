@@ -1,10 +1,14 @@
 
+import pandas as pd
+import numpy as np
+import scipy
+import warnings
 
 
 
 
 
-class UnivariateDistributions:
+class UnivariateNormal:
 
     def __inti__(self):
         pass
@@ -26,7 +30,7 @@ class UnivariateDistributions:
         else:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always") 
-                stat, p = scipy.stats.normaltest(vals)  
+                stat, p = scipy.stats.normaltest(x)  
         """if w:
             print(w[-1].message) """ 
         return p
@@ -45,7 +49,7 @@ class UnivariateDistributions:
         elif isinstance(columns,str):
             columns=[columns]
         if cols_to_exclude_from_targets is not None:
-            if isintance(cols_to_exclude_from_targets,str):
+            if isinstance(cols_to_exclude_from_targets,str):
                 cols_to_exclude_from_targets=[cols_to_exclude_from_targets]
             columns = [col for col in columns if col not in cols_to_exclude_from_targets]
         if not columns:
@@ -82,8 +86,8 @@ class UnivariateDistributions:
                                                             columns=numeric_columns,
                                                             cols_to_exclude_from_targets=cols_to_exclude_from_targets)
         if cat_alpha_above[1]==False:
-            return normal_df.loc[good_of_fit_df['P-value']<cat_alpha_above[0]].reset_index(drop=True)
+            return normal_df.loc[normal_df['P-value']<cat_alpha_above[0]].reset_index(drop=True)
         if cat_alpha_above[1]==True:
-            return normal_df.loc[good_of_fit_df['P-value']>=cat_alpha_above[0]].reset_index(drop=True)
+            return normal_df.loc[normal_df['P-value']>=cat_alpha_above[0]].reset_index(drop=True)
         else:
             return normal_df

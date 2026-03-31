@@ -570,6 +570,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
+        return
 
 
     # =====================================================================================================================================
@@ -654,6 +655,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
+        return
 
     # =====================================================================================================================================
     # bivariate_numeric_numeric_snapshot
@@ -816,7 +818,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
-
+        return
 
     # =====================================================================================================================================
     # univariate_categorical_snapshot
@@ -827,7 +829,7 @@ class PlotClass:
 
     def univariate_categorical_snapshot(self,
                                         data:pd.DataFrame,
-                                        categorical:list|None,
+                                        categorical:list|None= None,
                                         proportions:bool=False,
                                         n_wide:int|tuple|list=(6,40,4),
                                         super_title:str|None="Univariate Analysis of Categorical Variables"):
@@ -899,6 +901,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
+        return
 
     # =====================================================================================================================================
     # univariate_numerical_snapshot
@@ -907,12 +910,11 @@ class PlotClass:
 
     def univariate_numerical_snapshot(self,
                                         data:pd.DataFrame,
-                                        numerical:list|None,
+                                        numerical:list|None=None,
                                         n_wide:int|tuple|list=(6,40,4),
                                         kde:bool|None=None,
                                         super_title:str|None="Univariate Analysis of Numerical Variables",
-                                        plot_hypothetical_normal:bool|None=None, 
-                                        proportion:bool|None=None,
+                                        proportions:bool|None=None,
                                         keep_bins_significant:dict|None|bool=None,):
         """
         plots a histplot
@@ -920,7 +922,6 @@ class PlotClass:
             ## custom binning is supported, such as if the varaible has failed to reject null relationships in AnalyzeDataset module, 
             ## for custom bins, the BinnerClass should be used to provide a dictionary of header:bins in the **keep_bins_significant** parameter: {str(header):np.array|pd.Series(bins)}
         kde==True includes a kernel density estimate of the data
-        plot_hypothetical_normal==True simulates a normal distribution to compare to the kde
 
         numerical should be a list of columns or None. If None, numerical will be autodetected
         proportions should be boolean. If False, then counts will be used
@@ -935,12 +936,10 @@ class PlotClass:
         plt.rcdefaults()
         if kde is None: 
             kde=False
-        if proportion is None:
-            proportion = False
-        if plot_hypothetical_normal is None:
-            plot_hypothetical_normal=False
+        if proportions is None:
+            proportions=False
 
-        stat = 'count' if proportion in (None,False) else 'proportion'
+        stat = 'count' if proportions in (None,False) else 'probability'
 
         columns=numerical if numerical is not None else list(data.select_dtypes(['number',np.number]).columns)
 
@@ -948,15 +947,20 @@ class PlotClass:
             keep_bins_significant = {}
 
         # precompute bins for better compatability with self._columns_in_rows_map()
-        bin_df = pd.DataFrame({col:np.histogram_bin_edges(data[col],bins='auto') for col in columns if col not in keep_bins_significant.keys() else col:keep_bins_significant[col] })
+        bin_dict = {}
+        for col in columns:
+            if col in keep_bins_significant.keys():
+                vals = pd.Series(keep_bins_significant[col])
+                bin_dict.update({col:vals})
+            else:
+                vals = pd.Series(np.histogram_bin_edges(data[col],bins='auto'))
+                bin_dict.update({col:vals})
         
-        if plot_hypothetical_normal==True:          
-            normal = {header:np.random.normal(loc=df[header].mean(), scale=df[header].std(ddof=0), size=len(df[header].values)) for header in numerical}
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
             raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
         else:                       # case where plots should have vertical bars.
             row_height=5 if (len(n_wide)<3) else n_wide[2]
-            map_cols_to_rows, header_dict, alternate_plots = self._columns_in_rows_map(bin_df, 
+            map_cols_to_rows, header_dict, alternate_plots = self._columns_in_rows_map(bin_dict, 
                                                                 columns, 
                                                                 max_bars_on_row=n_wide[1], 
                                                                 num_columns_per_row=n_wide[0], 
@@ -991,24 +995,25 @@ class PlotClass:
                 if not isinstance(plot_header,str):
                     plot_header=plot_header[0]
                 plot_data = data[plot_header]
-                plot_bins = bin_df[plot_header]
+                plot_bins = bin_dict[plot_header]
                 # plot
                 plot_title = plot_header
                 plt.title(plot_title)
-                sns.hisptplot(x=plot_data,
+                sns.histplot(x=plot_data,
                               bins=plot_bins,
                               ax=ax,kde=kde, 
                               stat=stat,
-                              label='Observed')
-                if plot_hypothetical_normal==True:
-                    weights = None if proportion==False else len(normal[plot_header])
-                    sns.kdeplot(x=normal[plot_header], 
-                                ax=ax, 
-                                weights=weights,
-                                label='Normal')
-                ax.tick_params(axis='x',rotation=45)
+                              label='Observed',
+                              legend=True,)
+                ax.set_xticks(plot_bins)
+                tenth= plot_bins[int(len(plot_bins)*.1)]
+                if tenth<100:
+                    ax.set_xticklabels([f"{edge:,.2f}" for edge in plot_bins], rotation=45, ha='right')
+                else:
+                    ax.set_xticklabels([f"{edge:,.0f}" for edge in plot_bins], rotation=45, ha='right')
+                '''ax.tick_params(axis='x',rotation=45)
                 for label in ax.get_xticklabels():
-                    label.set_ha('right') 
+                    label.set_ha('right') '''
                 y_label='Count' if proportions==False else 'Proportion'
                 ax.set_ylabel(y_label)
                 plt.grid()
@@ -1017,7 +1022,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
-
+        return
 
 
     # =====================================================================================================================================
@@ -1183,6 +1188,7 @@ class PlotClass:
         #plt.tight_layout()
         plt.show()
         plt.rcdefaults()
+        return
 
 
 
