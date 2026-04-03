@@ -20,22 +20,24 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
     def column_comparison(self,
                         df,
                         numnum_meth_alpha_above:tuple|list|None=('welch',0.05,False),
-                        catnum_meth_alpha_above:tuple|list|None=('kruskal',0.05,False),
+                        numcat_meth_alpha_above:tuple|list|None=('kruskal',0.05,False),
                         catcat_meth_alpha_above:tuple|list|None=('chi2',0.05,False),
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
                         numeric_target:str|list|None=None,
                         categoric_target:str|list|None=None):
         """
+        DOES NOT CONSIDER ASSUMPTIONS
+            for assumption support try CompareColumns().multi_test_column_comparison()
         parameters:
         df: a pandas dataframe
-        numnum_meth_alpha_above, catnum_meth_alpha_above, and catcat_meth_alpha_above take input of:
+        numnum_meth_alpha_above, numcat_meth_alpha_above, and catcat_meth_alpha_above take input of:
             None or a tuple with (test method, alpha threshold, and whether >= or < in relation to threshold or both)
             if tuple, values should be (string, float, boolean|None).
             Examples: ('chi2',0.05,False), ('anova',0.025,None), ('welch',0.01,True).
             where: 
                 numnum_meth_alpha_above for a numeric-to-numeric comparison. Accepts methods of ('welch','student','pearson','spearman',kendall').
-                catnum_meth_alpha_above for a categoric-to-numeric comparison. Accepts methods of ('kruskal','anova').
+                numcat_meth_alpha_above for a categoric-to-numeric comparison. Accepts methods of ('kruskal','anova').
                 catcat_meth_alpha_above for a categoric-to-categoric comparison. Accepts method of ('chi2'). 
         numeric_columns and categoric_columns accept manual column input. Otherwise columns are autodetected,
         numeric_target and categoric_target accept target columns. If either or both, only combinations involving targets will be considered
@@ -48,31 +50,32 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
         # if there are any targets at all
         if is_cat_target or is_num_target:  # there is cat or num targets or both
             if not is_num_target: # then there is a cat target and no num target
-                include_numnum, include_catnum, include_catcat = False, True, True
+                include_numnum, include_numcat, include_catcat = False, True, True
             elif not is_cat_target:  # then there is a num target and no cat target
-                include_numnum, include_catnum, include_catcat = True, True, False
+                include_numnum, include_numcat, include_catcat = True, True, False
             else:  # there are cat and num targets
-                include_numnum, include_catnum, include_catcat = True, True, True
+                include_numnum, include_numcat, include_catcat = True, True, True
         else:  # there are no targets
-            include_numnum, include_catnum, include_catcat = True, True, True
+            include_numnum, include_numcat, include_catcat = True, True, True
 
         # append relevant dataframes to the concat list
-        if include_catnum and (catnum_meth_alpha_above is not None):
+        if include_numcat and (numcat_meth_alpha_above is not None):
             #retrieve cat to num df
-            if catnum_meth_alpha_above[0] not in ('anova','kruskal'):
-                raise ValueError(f"Categoric to Numeric method not recognized. Expected one of ('anova','kruskal'). Recieved {catnum_meth_alpha_above[0]}",ValueError)
-            catnum_df=self.cat_num_column_comparison(df,
-                                                        alpha=catnum_meth_alpha_above[1],
-                                                        keep_above_p=catnum_meth_alpha_above[2],
+            if numcat_meth_alpha_above[0] not in ('anova','kruskal'):
+                raise ValueError(f"Categoric to Numeric method not recognized. Expected one of ('anova','kruskal'). Recieved {numcat_meth_alpha_above[0]}",ValueError)
+            numcat_df=self.num_cat_column_comparison(df,
+                                                        alpha=numcat_meth_alpha_above[1],
+                                                        keep_above_p=numcat_meth_alpha_above[2],
                                                         numeric_columns=numeric_columns,
                                                         categoric_columns=categoric_columns,
                                                         numeric_target=numeric_target,
                                                         categoric_target=categoric_target,
-                                                        test_method=catnum_meth_alpha_above[0])  
-            catnum_df=catnum_df.rename(columns={'category':'column_b','numeric':'column_a'})
-            catnum_df['test']=catnum_meth_alpha_above[0]
-            if catnum_df.shape[0]>0:
-                result_frames_to_concat.append(catnum_df)
+                                                        test_method=numcat_meth_alpha_above[0],
+                                                        check_assumptions=False)  
+            numcat_df=numcat_df.rename(columns={'category':'column_b','numeric':'column_a'})
+            numcat_df['test']=numcat_meth_alpha_above[0]
+            if numcat_df.shape[0]>0:
+                result_frames_to_concat.append(numcat_df)
         if include_catcat and (catcat_meth_alpha_above is not None):
             # retrieve cat to cat df
             if catcat_meth_alpha_above[0] not in ('chi2'):
@@ -81,7 +84,8 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                                                             alpha=catcat_meth_alpha_above[1],
                                                             keep_above_p=catcat_meth_alpha_above[2],
                                                             categoric_columns=categoric_columns,
-                                                            categoric_target=categoric_target )
+                                                            categoric_target=categoric_target,
+                                                             check_assumptions=False )
             catcat_df=catcat_df.rename(columns={'category_a':'column_a','category_b':'column_b'})
             catcat_df['test']=catcat_meth_alpha_above[0]
             if catcat_df.shape[0]>0:
@@ -121,7 +125,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
     def multi_test_column_comparison(self,
                         df,
                         numnum_meth_alpha_above:tuple|list|None=[('pearson',0.6,True),('spearman',0.6,True),('kendall',0.6,True)],
-                        catnum_meth_alpha_above:tuple|list|None=[('kruskal',0.05,False),('anova',0.05,False)],
+                        numcat_meth_alpha_above:tuple|list|None=[('kruskal',0.05,False),('anova',0.05,False)],
                         catcat_meth_alpha_above:tuple|list|None=[('chi2',0.05,False)],
                         numeric_columns:str|list|None=None,
                         categoric_columns:str|list|None=None,
@@ -135,13 +139,13 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
         """
         parameters:
         df: a pandas dataframe
-        numnum_meth_alpha_above, catnum_meth_alpha_above, and catcat_meth_alpha_above take input of:
+        numnum_meth_alpha_above, numcat_meth_alpha_above, and catcat_meth_alpha_above take input of:
             None or a LIST of tuple(s) with (test method, alpha threshold, and whether >= or < in relation to threshold or None for both)
             if tuple, values should be (string, float, boolean|None).
             Examples: ('chi2',0.05,False), ('anova',0.025,None), ('welch',0.01,True).
             where: 
                 numnum_meth_alpha_above for a numeric-to-numeric comparison. Accepts methods of ('welch','student','pearson','spearman',kendall').
-                catnum_meth_alpha_above for a categoric-to-numeric comparison. Accepts methods of ('kruskal','anova').
+                numcat_meth_alpha_above for a categoric-to-numeric comparison. Accepts methods of ('kruskal','anova').
                 catcat_meth_alpha_above for a categoric-to-categoric comparison. Accepts method of ('chi2'). 
         numeric_columns and categoric_columns accept manual column input. Otherwise columns are autodetected,
         numeric_target and categoric_target accept target columns. If either or both, only combinations involving targets will be considered
@@ -173,23 +177,23 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
         # if there are any targets at all
         if is_cat_target or is_num_target:  # there is cat or num targets or both
             if not is_num_target: # then there is a cat target and no num target
-                include_numnum, include_catnum, include_catcat = False, True, True
+                include_numnum, include_numcat, include_catcat = False, True, True
             elif not is_cat_target:  # then there is a num target and no cat target
-                include_numnum, include_catnum, include_catcat = True, True, False
+                include_numnum, include_numcat, include_catcat = True, True, False
             else:  # there are cat and num targets
-                include_numnum, include_catnum, include_catcat = True, True, True
+                include_numnum, include_numcat, include_catcat = True, True, True
         else:  # there are no targets
-            include_numnum, include_catnum, include_catcat = True, True, True
+            include_numnum, include_numcat, include_catcat = True, True, True
 
         # append relevant dataframes to the concat list
-        if include_catnum and (catnum_meth_alpha_above is not None):
-            if (not isinstance(catnum_meth_alpha_above[0],list)) and (not isinstance(catnum_meth_alpha_above[0],tuple)):
-                raise ValueError(f"multi_test_column_comparison() should have var-to-var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
-            for instruction in catnum_meth_alpha_above:                
+        if include_numcat and (numcat_meth_alpha_above is not None):
+            if (not isinstance(numcat_meth_alpha_above[0],list)) and (not isinstance(numcat_meth_alpha_above[0],tuple)):
+                raise ValueError(f"multi_test_column_comparison() should have var-to-var test instructions nested such as [(),()]. Found {numcat_meth_alpha_above}")
+            for instruction in numcat_meth_alpha_above:                
                 #retrieve cat to num df
                 if instruction[0] not in ('anova','kruskal'):
-                    raise ValueError(f"Categoric to Numeric method not recognized. Expected one of ('anova','kruskal'). Recieved {catnum_meth_alpha_above[0]}",ValueError)
-                catnum_df=self.cat_num_column_comparison(df,
+                    raise ValueError(f"Categoric to Numeric method not recognized. Expected one of ('anova','kruskal'). Recieved {numcat_meth_alpha_above[0]}",ValueError)
+                numcat_df=self.num_cat_column_comparison(df,
                                                             alpha=instruction[1],
                                                             keep_above_p=instruction[2],
                                                             numeric_columns=numeric_columns,
@@ -201,13 +205,13 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                                                             check_assumptions=check_assumptions,
                                                             anova_assumption_check_params=anova_assumption_check_params,
                                                             kruskal_assumption_check_params=kruskal_assumption_check_params)  
-                catnum_df=catnum_df.rename(columns={'category':'column_b','numeric':'column_a'})
-                catnum_df['test']=instruction[0]
-                if catnum_df.shape[0]>0:
-                    result_frames_to_concat.append(catnum_df)
+                numcat_df=numcat_df.rename(columns={'category':'column_b','numeric':'column_a'})
+                numcat_df['test']=instruction[0]
+                if numcat_df.shape[0]>0:
+                    result_frames_to_concat.append(numcat_df)
         if include_catcat and (catcat_meth_alpha_above is not None):
             if (not isinstance(catcat_meth_alpha_above[0],list)) and (not isinstance(catcat_meth_alpha_above[0],tuple)):
-                raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
+                raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {numcat_meth_alpha_above}")
             for instruction in catcat_meth_alpha_above: 
                 # retrieve cat to cat df
                 if instruction[0] not in ('chi2'):
@@ -225,7 +229,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                     result_frames_to_concat.append(catcat_df)
         if include_numnum and (numnum_meth_alpha_above is not None):
             if (not isinstance(numnum_meth_alpha_above[0],list)) and (not isinstance(numnum_meth_alpha_above[0],tuple)):
-                raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {catnum_meth_alpha_above}")
+                raise ValueError(f"multi_test_column_comparison() should have var-to_var test instructions nested such as [(),()]. Found {numcat_meth_alpha_above}")
             for instruction in numnum_meth_alpha_above: 
                 # retrieve num to num df
                 if instruction[0] in ('pearson','spearman','kendall'):

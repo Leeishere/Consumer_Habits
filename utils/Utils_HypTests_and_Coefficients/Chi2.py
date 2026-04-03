@@ -645,12 +645,3 @@ class Chi2:
         return frame
         
 
-"""
-pipe such as   
-chi test of independence,  
-Save related columns into class  
-access class to   
-if p isclose 0 then proportion_are_deterministic_subcats(self,df, super_col, sub_col)->T/F; save as list in class; map_subcat_to_supercat(self,df,supercat,subcat)&-->proportion mu estimate plot, [later on will support=then segment, do pareto plots]    
-if not in deterministic=True test_many_cats_for_evidence_of_super_cats(self,df,columns:list)  and if low bits(which=high evidence): plot proportion mu, two sample proportion tests to filter items that don't belong, and revised proportion mu plot, [later on will support=then segment, do pareto plots]        
-the remainder should be tested with chi test of homogeneity and use a sns w/ hue, possibly binned  
-"""

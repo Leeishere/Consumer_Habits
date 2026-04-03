@@ -26,7 +26,7 @@ class ANOVA:
     # otherwise they return True/False/'Pseudo'
     # anova_assumption_checks() wraps multiple helper functions
     # kruskal_wallis_assumptions() wraps multiple helper as well
-    # they are called/located in test_all_cat_num_kruskal_wallis() and test_all_cat_num_ANOVA() 
+    # they are called/located in test_all_num_cat_kruskal_wallis() and test_all_num_cat_ANOVA() 
     # scipy.stats.shapiro() and scipy.stats.normaltest() are called in _anova_check_normality() and tests for normality, 
     # scipy.stats.shapiro() is exclusive to scipy.stats
     # scipy.stats.normaltest() is supported in other libraries and on gpu. 
@@ -525,19 +525,19 @@ class ANOVA:
         This assumes no group size is <3
         as per levene checks that happen before this is called
         if guesstimate is not False or None:
-            rej_max_pct_in_group and/or max_num_z_all_rej can be passed as a dict in place of True for guesstimate
+            rej_max_pct_in_group and/or max_num_outlier_all_reject can be passed as a dict in place of True for guesstimate
             both need to be exceded for the result to output False
             rej_max_pct_in_group is max percentage of reject in combos the given group is involved in. Such that the group can be in left or right column
-            max_num_z_all_rej is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
+            max_num_outlier_all_reject is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
             max_pct_reject_total is total pct of combinations that rejected
-            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
+            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_outlier_all_reject':3, 'max_pct_reject_total':0.2}
 
             two ways to fail: (the 1st is 2 parts)
             1) if one or more varaibles exced percentage failure for num combos it is involved with |or| any one variable excedes the z score threshold
             2) max_pct_reject_total is exceded. In this case, it can be one or many varaibles that contribute. Even if none were caught in previous
         """
         if n_jobs is None:
-            n_jobs=-2         # maximize use of resources but leave one for user flexibility
+            n_jobs=3         
         if return_meta is None:
             return_meta=False
         if alpha is None:
@@ -545,13 +545,13 @@ class ANOVA:
         if guesstimate is None:
             guesstimate=False
         if (guesstimate!=False):
-            default_guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
+            default_guesstimate = {'rej_max_pct_in_group':0.2,'max_num_outlier_all_reject':3, 'max_pct_reject_total':0.2}
             if guesstimate==True:
                 guesstimate = default_guesstimate
             else:
                 default_guesstimate.update(guesstimate)
             rej_max_pct_in_group = default_guesstimate.get('rej_max_pct_in_group',0.2)
-            max_num_z_all_rej    = default_guesstimate.get('max_num_z_all_rej',3)
+            max_num_outlier_all_reject    = default_guesstimate.get('max_num_outlier_all_reject',3)
             max_pct_reject_total = default_guesstimate.get('max_pct_reject_total',0.2)
         
         grouped = (
@@ -603,13 +603,13 @@ class ANOVA:
                 sums_df['z'] = (sums_df['totals']-mu) / q
                 sums_df['pct_of_group'] = sums_df['totals']/group_sizes
                 # where true is in the fail to meet assumption direction
-                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_z_all_rej)
+                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_outlier_all_reject)
 
                 return (not ((sums_df['result']).any() or (pct_reject > max_pct_reject_total)))
             return bool_df.any()
         except Exception as e:
             warnings.warn(f'Problem encountered durring parallel computing of similarity scores for Kruskal-Wallis assumption checks: \n{e}. \nTrying n_jobs = -1.')
-            results = Parallel(n_jobs=-1)(
+            results = Parallel(n_jobs=3)(
                             delayed(compute)(i, j)
                             for i, j in combinations(keys, 2)
                         )
@@ -639,7 +639,7 @@ class ANOVA:
                 sums_df['z'] = (sums_df['totals']-mu) / q
                 sums_df['pct_of_group'] = sums_df['totals']/group_sizes
                 # where true is in the fail to meet assumption direction
-                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_z_all_rej)
+                sums_df['result'] = (sums_df['pct_of_group'] > rej_max_pct_in_group) | (sums_df['z'] > max_num_outlier_all_reject)
             
                 return (not ((sums_df['result']).any() or (pct_reject > max_pct_reject_total)))
         
@@ -882,12 +882,12 @@ class ANOVA:
         
         if guesstimate is not False or None:
             it controls how pairwise grouped vars are tested for similar distributions
-            elements in {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2} can be passed as a dict in place of True for guesstimate
+            elements in {'rej_max_pct_in_group':0.2,'max_num_outlier_all_reject':3, 'max_pct_reject_total':0.2} can be passed as a dict in place of True for guesstimate
             any one of them needs to be exceded for the result to output False
             rej_max_pct_in_group is max percentage of reject in combos the given group is involved in. Such that the group can be in left or right column
-            max_num_z_all_rej is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
+            max_num_outlier_all_reject is the z score of number of reject counts given to any given group. all groups are included. including ones with zero rejects
             max_pct_reject_total is total pct of combinations that rejected
-            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_z_all_rej':3, 'max_pct_reject_total':0.2}
+            default guesstimate = {'rej_max_pct_in_group':0.2,'max_num_outlier_all_reject':3, 'max_pct_reject_total':0.2}
 
             two ways to fail: (the 1st is 2 parts)
             1) if one or more varaibles exced percentage failure for num combos it is involved with |or| any one variable excedes the z score threshold
@@ -1212,39 +1212,39 @@ class ANOVA:
     # =========================================================================================================================================================================
     # ANOVA
     def one_way_ANOVA(self,
-                      two_col_df_x_y:pd.DataFrame,
+                      two_col_cat_num_df:pd.DataFrame,
                       dropna:bool|None=None):
         """
         Where col in position [0] is catigorical and [1] is numeric
         returns np.nan when there arent enough observations or when there is no within-group variance
         """
 
-        two_col_df_x_y=pd.DataFrame(two_col_df_x_y) 
-        cols=two_col_df_x_y.columns
+        two_col_cat_num_df=pd.DataFrame(two_col_cat_num_df) 
+        cols=two_col_cat_num_df.columns
         x= cols[0]
         y= cols[1]
 
         if dropna is None:
             dropna=True
         if dropna==False:
-            two_col_df_x_y = two_col_df_x_y.dropna(subset=[y])
-            two_col_df_x_y[x] = two_col_df_x_y[x].where(~two_col_df_x_y[x].isna(), 'NaN')
+            two_col_cat_num_df = two_col_cat_num_df.dropna(subset=[y])
+            two_col_cat_num_df[x] = two_col_cat_num_df[x].where(~two_col_cat_num_df[x].isna(), 'NaN')
         else:
-            two_col_df_x_y = two_col_df_x_y.dropna()
+            two_col_cat_num_df = two_col_cat_num_df.dropna()
 
 
-        number_of_groups=two_col_df_x_y[x].nunique()
-        overall_mean=two_col_df_x_y[y].mean()
+        number_of_groups=two_col_cat_num_df[x].nunique()
+        overall_mean=two_col_cat_num_df[y].mean()
 
         #Sum of Squares Between
-        SB_df=two_col_df_x_y.groupby(x,observed=True)[y].agg(['size','mean'])
+        SB_df=two_col_cat_num_df.groupby(x,observed=True)[y].agg(['size','mean'])
         SSB=(((SB_df['mean']-overall_mean)**2)*SB_df['size']).sum()
 
         #Sum of Squares Within
         #untill broadcast level is supported @ https://docs.rapids.ai/api/cudf/stable/user_guide/api_docs/api/cudf.dataframe.subtract/#cudf.DataFrame.subtract
         #join is used instead of direct subtraction
         #map might be faster on smaller datasets than join
-        SW_df=two_col_df_x_y.join(SB_df,on=x,validate='m:1')
+        SW_df=two_col_cat_num_df.join(SB_df,on=x,validate='m:1')
         SW_df['observed-group_mean']=SW_df[y]-SW_df['mean']
         SW_df['observed-group_mean']=SW_df['observed-group_mean']**2
         SW_df=SW_df.groupby(x,observed=True)['observed-group_mean'].sum()
@@ -1253,7 +1253,7 @@ class ANOVA:
         del SW_df, SB_df
 
         #Degrees of Freedom
-        dof_W=two_col_df_x_y.shape[0] - number_of_groups
+        dof_W=two_col_cat_num_df.shape[0] - number_of_groups
         # return np.nan if there aren't enough observations for ANOVA
         if dof_W<=0: return np.nan
         dof_B=number_of_groups - 1
@@ -1272,7 +1272,7 @@ class ANOVA:
 
         return p_value
 
-    def test_all_cat_num_ANOVA(self,
+    def test_all_num_cat_ANOVA(self,
                                data:pd.DataFrame, 
                                numeric_columns:str|list|None=None,
                                categoric_columns:str|list|None=None,
@@ -1382,7 +1382,7 @@ class ANOVA:
         p_value = scipy.stats.chi2.sf(h_statistic, dof)
         return p_value
     
-    def test_all_cat_num_kruskal_wallis(self,
+    def test_all_num_cat_kruskal_wallis(self,
                                         data:pd.DataFrame, 
                                         numeric_columns:str|list|None=None,
                                         categoric_columns:str|list|None=None,
@@ -1413,7 +1413,7 @@ class ANOVA:
                 pseudo_test_max_global_ties_ratio = assumption_check_params.get('pseudo_test_max_global_ties_ratio', 0.5)
                 full_pseudo = assumption_check_params.get('full_pseudo', False)
                 guesstimate = assumption_check_params.get('guesstimate',False)
-                n_jobs      = assumption_check_params.get('n_jobs',-2)
+                n_jobs      = assumption_check_params.get('n_jobs',3)
             else: 
                 levene_alpha =  0.05
                 ks_alpha = 0.05
@@ -1421,7 +1421,7 @@ class ANOVA:
                 pseudo_test_max_global_ties_ratio =  0.5
                 full_pseudo = False
                 guesstimate = False
-                n_jobs      = -2
+                n_jobs      = 3
         if assumption_check_params:
                 dropna=assumption_check_params.get('dropna', True)
         else:
@@ -1466,7 +1466,7 @@ class ANOVA:
     # a comparison function that supports either 'kruskal' or 'anova'
     #=========================================================================================================================================================
     
-    def cat_num_column_comparison(self,
+    def num_cat_column_comparison(self,
                                   data:pd.DataFrame, 
                                   alpha:float|None=None,
                                   keep_above_p:bool|None=None, 
@@ -1490,7 +1490,7 @@ class ANOVA:
         test_method = 'kruskal' if test_method is None else test_method
         alpha = 0.05 if alpha is None else alpha
         if test_method=='kruskal':
-            p_table=self.test_all_cat_num_kruskal_wallis(data=data, 
+            p_table=self.test_all_num_cat_kruskal_wallis(data=data, 
                                                         numeric_columns=numeric_columns,
                                                         categoric_columns=categoric_columns,
                                                         categoric_target=categoric_target,
@@ -1501,7 +1501,7 @@ class ANOVA:
                                                         )
             
         elif test_method=='anova':
-            p_table=self.test_all_cat_num_ANOVA(data=data, 
+            p_table=self.test_all_num_cat_ANOVA(data=data, 
                                                         numeric_columns=numeric_columns,
                                                         categoric_columns=categoric_columns,
                                                         categoric_target=categoric_target,
