@@ -4,9 +4,10 @@ import scipy.stats
 import warnings
 import itertools
 from itertools import combinations
+
 try:
-    from utils.CompareColumns import CompareColumns
-except(ModuleNotFoundError):
+    from .CompareColumns import CompareColumns
+except:
     from CompareColumns import CompareColumns
 
 

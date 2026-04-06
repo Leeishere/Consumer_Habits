@@ -1,28 +1,27 @@
 
-try:
+"""
     from utils.CompareColumns import CompareColumns
+    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from utils.Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
+    from utils.PlotClass import PlotClass
+    from utils.UnivariateNormal import UnivariateNormal
+    from utils.BinnerClass import Bin
+"""
+try:
+    from .CompareColumns import CompareColumns
+    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from .Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
+    from .PlotClass import PlotClass
+    from .UnivariateNormal import UnivariateNormal
+    from .BinnerClass import Bin
 except:
     from CompareColumns import CompareColumns
-try:
-    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
-except:
     from Utils_HypTests_and_Coefficients.Chi2 import Chi2
-try:
-    from utils.Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
-except:
     from Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
-try:
-    from utils.PlotClass import PlotClass
-except:
     from PlotClass import PlotClass
-try:
-    from utils.UnivariateNormal import UnivariateNormal
-except:
     from UnivariateNormal import UnivariateNormal
-try:
-    from utils.BinnerClass import Bin
-except:
     from BinnerClass import Bin
+
 
 
 import pandas as pd
@@ -114,7 +113,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         self.numcat_meth_alpha_above              = [('kruskal',0.05,None),('anova',0.05,None)] if numcat_meth_alpha_above_instructions == True else None if numcat_meth_alpha_above_instructions == False else numcat_meth_alpha_above_instructions # where variable is not like stat dataframe. dataframe has numric in column 0 and categoric in column 1
         self.catcat_meth_alpha_above              = [('chi2',0.05,None)] if catcat_meth_alpha_above_instructions == True else None if catcat_meth_alpha_above_instructions == False else catcat_meth_alpha_above_instructions
         self.good_of_fit_uniform_test_instrucions = (0.05,None) if good_of_fit_uniform_test_instrucions == True else None if good_of_fit_uniform_test_instrucions == False else good_of_fit_uniform_test_instrucions
-        self.normal_test_instrucitons             = (0.05,False) if normal_test_instructions == True else None if normal_test_instructions == False else normal_test_instructions
+        self.normal_test_instrucitons             = (0.05,None) if normal_test_instructions == True else None if normal_test_instructions == False else normal_test_instructions
 
         default_multivariate_params = {'max_n_combination_size':3, 'max_n_combinations':50_000,  'min_combo_size':2}
         if multivariate_params is not None:
@@ -1495,7 +1494,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             column_combinations = self.reject_null_catcat
             if not column_combinations:
                 return print("The model does not contain any categoric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
-        self.bivaraite_categorical_snapshot(
+        self.bivariate_categorical_snapshot(
                             data=data,
                             column_combinations=column_combinations,                        
                             n_wide=n_wide,

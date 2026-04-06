@@ -452,13 +452,13 @@ class PlotClass:
 
 
     # =====================================================================================================================================
-    # bivaraite_categorical_snapshot
+    # bivariate_categorical_snapshot
     # =====================================================================================================================================
 
 
 
 
-    def bivaraite_categorical_snapshot(self,
+    def bivariate_categorical_snapshot(self,
                             data:pd.DataFrame,
                             column_combinations:list,                        
                             n_wide:int|tuple|list,
@@ -488,7 +488,7 @@ class PlotClass:
                                                                 max_bars_on_row=n_wide[1], 
                                                                 alternate_plot_when_max_bars_is_exceeded=stacked_bars_when_max_bars_is_exceeded,
                                                                 num_columns_per_row=n_wide[0], 
-                                                            univariate=False)
+                                                                univariate=False)
             
 
         #create figure

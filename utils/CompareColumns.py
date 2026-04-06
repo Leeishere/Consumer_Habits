@@ -4,16 +4,22 @@ import pandas as pd
 import numpy as np
 import inspect
 
-try:
+"""
     from utils.Utils_HypTests_and_Coefficients.ANOVA import ANOVA
     from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
     from utils.Utils_HypTests_and_Coefficients.Coefficient import Coefficient
     from utils.Utils_HypTests_and_Coefficients.TTests import TTests
+"""
+try:
+    from .Utils_HypTests_and_Coefficients.ANOVA import ANOVA
+    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
+    from .Utils_HypTests_and_Coefficients.Coefficient import Coefficient
+    from .Utils_HypTests_and_Coefficients.TTests import TTests
 except:
     from Utils_HypTests_and_Coefficients.ANOVA import ANOVA
     from Utils_HypTests_and_Coefficients.Chi2 import Chi2
     from Utils_HypTests_and_Coefficients.Coefficient import Coefficient
-    from Utils_HypTests_and_Coefficients.TTests import TTests
+    from Utils_HypTests_and_Coefficients.TTests import TTests    
 
 class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
 
@@ -111,17 +117,8 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 raise ValueError(f"Numeric to Numeric method not recognized. Expected one of ('pearson','spearman','kendall','welch','student'). Recieved {numnum_meth_alpha_above[0]}",ValueError)
             numnum_df=numnum_df.rename(columns={'numeric_1':'column_a','numeric_2':'column_b'})
             numnum_df['test']=numnum_meth_alpha_above[0]
-            if numnum_df.shape[0]>0:
-                result_frames_to_concat.append(numnum_df)
-        possible_columns=['column_a','column_b','test','P-value','Correlation']
-        if len(result_frames_to_concat)<1:
-            return pd.DataFrame(columns=possible_columns)
-        result=pd.concat(result_frames_to_concat)
-        result=result[[col for col in possible_columns if col in result.columns]]
-        return result
-    
-
-
+            if numnum_df.shape[0]>0:                
+                    result_frames_to_concat.append(numnum_df)
     def multi_test_column_comparison(self,
                         df,
                         numnum_meth_alpha_above:tuple|list|None=[('pearson',0.6,True),('spearman',0.6,True),('kendall',0.6,True)],
