@@ -4,7 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import seaborn as sns
-
+try:
+    import streamlit as st
+except:
+    import warnings
+    warnings.warn('streamlit import unsuccessful')
 
 
 class PlotClass:
@@ -20,7 +24,7 @@ class PlotClass:
     #plotting functions
     def _bar_count(self,
                 data, 
-                column_headers:list|tuple, 
+                column_headers:list|tuple|None=None, 
                 max_bars_on_row:int=40, 
                 alternate_plot_when_max_bars_is_exceeded:bool=False,
                 num_columns_per_row:int=3,
@@ -38,6 +42,8 @@ class PlotClass:
         Plus a 3rd element is returned: a separate dict of alternates: {str(int(num_cols_wide)):[(header,header, y_header),(),...]}
             which is empty if alternate_plot_when_max_bars_is_exceeded is false, or if true but bax bars is never exceeded
         """
+        if not column_headers:
+            column_headers = []
         # count each axis size in column width
         axis_counts_by_size = [0]*(num_columns_per_row)
         # store column header(s) with axis width in columns as key
@@ -47,12 +53,13 @@ class PlotClass:
         vert_bars_per_axis=int(max_bars_on_row//num_columns_per_row)  # the number of bars per axis slot
         # check to see if headers are passed as univariate strings not enclosed in nested arrays and otherwise, len nested is >1
         len_uni=False
-        if isinstance(column_headers[0],str) or ( (not isinstance(column_headers[0],str)) and (len(column_headers[0])<=1) ):
-            if univariate==False:
-                raise ValueError('Variable(s) are not combined in nested arraylike structrures, but univariate==False.',ValueError)
-            if isinstance(column_headers[0],str):
-                column_headers=[[col] for col in column_headers]
-            len_uni=True
+        if column_headers:
+            if isinstance(column_headers[0],str) or ( (not isinstance(column_headers[0],str)) and (len(column_headers[0])<=1) ):
+                if univariate==False:
+                    raise ValueError('Variable(s) are not combined in nested arraylike structrures, but univariate==False.',ValueError)
+                if isinstance(column_headers[0],str):
+                    column_headers=[[col] for col in column_headers]
+                len_uni=True
 
         #loop through headers
         for column_headers_ in column_headers:
@@ -464,7 +471,8 @@ class PlotClass:
                             n_wide:int|tuple|list,
                             stacked_bars_when_max_bars_is_exceeded:bool=True,
                             sorted:bool=True,
-                            super_title:str|None="Bivariate Analysis of Categorical Variables"):
+                            super_title:str|None="Bivariate Analysis of Categorical Variables" ,
+                   streamlit_:bool|None = None):
         """
         categorical should be a list of column pairs: [[cola,colb],[colc,cold], ...]
         where n_wide determines horizontal or vertical bars
@@ -478,7 +486,8 @@ class PlotClass:
 
         """        
         plt.rcdefaults()
-        
+        if streamlit_ is None:
+            streamlit_ = False 
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
             raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
         else:                       # case where plots should have vertical bars.
@@ -568,7 +577,11 @@ class PlotClass:
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 
@@ -584,7 +597,8 @@ class PlotClass:
                                         column_combos:list,
                                         plot_type:str='boxen',
                                         n_wide:int|tuple|list=(6,40,4),
-                                        super_title:str|None="Bivariate Analysis of Categoric and Numeric"):
+                                        super_title:str|None="Bivariate Analysis of Categoric and Numeric" ,
+                   streamlit_:bool|None = None):
         """
         column_combos should be a list of column pairs: [[numeric_col,categoric_col],[ ..., ... ], ...]
         plot_type should be one of box, boxen, violin
@@ -594,6 +608,8 @@ class PlotClass:
 
         """
         plt.rcdefaults()
+        if streamlit_ is None:
+            streamlit_ = False 
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
             raise ValueError("Sorry horizontal bars are not yet supported. Please provide an array like input for n_wide")
         else:                       # case where plots should have vertical bars.
@@ -653,7 +669,11 @@ class PlotClass:
                     plt.grid()
             available_row_start_index = 0
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 
@@ -758,7 +778,8 @@ class PlotClass:
                                             linreg:bool=True,                        
                                             super_title:str|None="Bivariate Analysis: Numeric to Numeric",
                                             plot_type_kwargs:dict|None=None,
-                                            linreg_kwargs:dict|None=None):
+                                            linreg_kwargs:dict|None=None ,
+                   streamlit_:bool|None = None):
         """
         column_combos should be a list of column combinations: [(col_a,col_b), (col_c,col_d), ...]
         plot_type should be of 'joint' or 'scatter' and specifies plot type
@@ -774,6 +795,8 @@ class PlotClass:
                                 space=0.05
         """
         plt.rcdefaults()
+        if streamlit_ is None:
+            streamlit_ = False 
         if plot_type_kwargs==None: plot_type_kwargs={}
         if  linreg_kwargs==None: linreg_kwargs={}
 
@@ -816,7 +839,11 @@ class PlotClass:
             ax.set_xlabel(column_combos[index][0])
             ax.grid()
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 
@@ -832,7 +859,8 @@ class PlotClass:
                                         categorical:list|None= None,
                                         proportions:bool=False,
                                         n_wide:int|tuple|list=(6,40,4),
-                                        super_title:str|None="Univariate Analysis of Categorical Variables"):
+                                        super_title:str|None="Univariate Analysis of Categorical Variables" ,
+                   streamlit_:bool|None = None):
         """
         categorical should be a list of columns or None. If None, categories will be autodetected
         proportions should be boolean. If False, then counts will be used
@@ -845,6 +873,8 @@ class PlotClass:
 
         """
         plt.rcdefaults()
+        if streamlit_ is None:
+            streamlit_ = False 
         columns=categorical if categorical is not None else list(data.select_dtypes('object').columns)
 
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
@@ -899,7 +929,11 @@ class PlotClass:
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 
@@ -915,7 +949,8 @@ class PlotClass:
                                         kde:bool|None=None,
                                         super_title:str|None="Univariate Analysis of Numerical Variables",
                                         proportions:bool|None=None,
-                                        keep_bins_significant:dict|None|bool=None,):
+                                        keep_bins_significant:dict|None|bool=None ,
+                   streamlit_:bool|None = None):
         """
         plots a histplot
             by default bins are decided by np.histogram_bin_edges bins='auto' which chooses the min(Sturges' Method, Freedman-Diaconis Rule)
@@ -934,6 +969,8 @@ class PlotClass:
 
         """
         plt.rcdefaults()
+        if streamlit_ is None:
+            streamlit_ = False 
         if kde is None: 
             kde=False
         if proportions is None:
@@ -1020,7 +1057,11 @@ class PlotClass:
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 
@@ -1130,7 +1171,8 @@ class PlotClass:
                                row_height, 
                                cols_per_row, 
                                y_tick_fontsize,
-                               super_title:str|None=None):
+                               super_title:str|None=None ,
+                   streamlit_:bool|None = None):
         """
         where figure map is ouptut[0] from prep_super_subcat_figure_maps()
         where figure map should be a list of lists: [
@@ -1142,6 +1184,8 @@ class PlotClass:
         row_height, cols_per_row, and y_tick_fontsize are passed from _map_subcats_supercat_to_fig()
         """
         plt.rcdefaults()
+        if streamlit_ is None:
+            streamlit_ = False 
         if super_title is None:
             super_title= 'Super and Sub Categories - One Categoric Variable Partitions Another'
         total_rows = sum(i[0] for i in figure_map)
@@ -1159,7 +1203,7 @@ class PlotClass:
         supercat_header_start_row = 0
         for supercat_map in figure_map:
             curr_supercat_header = supercat_map[1]
-            ax_super = fig.add_subplot(grid_specs[supercat_header_start_row,:])
+            ax_super = fig.add_subplot(grid_specs[supercat_header_start_row,:]) 
             super_plot_data=data[curr_supercat_header].value_counts()
             plt.title(curr_supercat_header)
             sns.barplot(x=super_plot_data.index,y=super_plot_data.values,ax=ax_super)
@@ -1186,7 +1230,11 @@ class PlotClass:
             # increment the start spot for the next supercat column
             supercat_header_start_row+=supercat_map[0]
         #plt.tight_layout()
-        plt.show()
+        if streamlit_==False:
+            plt.show()
+        else:
+            fig = plt.gcf()
+            st.pyplot(fig,clear_figure=True)  
         plt.rcdefaults()
         return
 

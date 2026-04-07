@@ -75,15 +75,18 @@ class Bin(CompareColumns):
         
         return num_num_df,num_cat
     
-    def pair_column_headers(self,num_num_df,num_cat):
+    def pair_column_headers(self,num_num_df:list|None=None,num_cat:list|None=None):
         """
         processes output from Bin().pre_bin_relationships()
         prepares data for Bin().determine_min_number_of_bins()
         if either arg is entered as None, it returns None for that arg
         """
-        if num_cat is not None:
+        
+        num_num_pairs, cat_num_pairs = [], []
+
+        if num_cat:
             cat_num_pairs=tuple((i.column_b,i.column_a) for i in num_cat[['column_a','column_b']].itertuples())
-        if num_num_df is not None:
+        if num_num_df:
             num_num_pairs=tuple([(i.column_a,i.column_b) for i in num_num_df[['column_a','column_b']].itertuples()]+[(i.column_b,i.column_a)  for i in num_num_df[['column_a','column_b']].itertuples()])
         return num_num_pairs, cat_num_pairs
 
@@ -254,10 +257,10 @@ class Bin(CompareColumns):
 
         data=dataframe.copy()
         #extract the columns that will be y-target
-        if (not categoric_target) and (not (not  numeric_target)):
+        if (not categoric_target) and (not (not  numeric_target)) :
             cols_to_bin = numeric_target
         elif non_pair_numnum_numcat==True:
-            cols_to_bin = list(set(num_num_pairs+numeric_target))
+            cols_to_bin = list(numeric_target)
         else:
             cols_to_bin=list(set([i[1] for i in cat_num_pairs]+[i[1] for i in num_num_pairs]))  #use index 1 for both 
         #track minumum bins and max, no-relationship bins

@@ -102,7 +102,6 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                 'super_title':"Supercategory-Subcategory - One Categoriec Variable Partitions Another"
                                 } 
         #
-        self.auto_bin                                   = auto_bin if auto_bin is not None else False
         #self.continuous_ordinalized_suffix              = continuous_ordinalized_suffix
         #self.continuous_binned_suffix                   = continuous_binned_suffix
         #self.categorical_ordinalized_suffix             = categorical_ordinalized_suffix
@@ -1397,11 +1396,14 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         categorical:list|tuple|None=None,
                                         proportions:bool=False,
                                         n_wide:int|tuple|list=(6,40,4),
-                                        super_title:str|None="Univariate Categorical Variables - Reject Good-Of-Fit for Uniform"):
+                                        super_title:str|None="Univariate Categorical Variables - Reject Good-Of-Fit for Uniform" ,
+                   streamlit_:bool|None = None):
         """
         where if categorical is None, columns from self.reject_null_good_of_fit will be ploted. Otherwise columns in cateigorical will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if categorical is None:
             categorical = list(self.reject_null_good_of_fit)
         elif isinstance(categorical,str):
@@ -1414,7 +1416,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         categorical=categorical,
                                         proportions=proportions,
                                         n_wide=n_wide,
-                                        super_title=super_title)
+                                        super_title=super_title,
+                                            streamlit_=streamlit_)
         return self
 
 
@@ -1432,13 +1435,16 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         super_title:str|None="Univariate Numerical Variables - Reject Good-Of-Fit for Uniform",
                                         force_significant_bin_edges:bool|None=None,
                                         minimize_significant_bins:bool|None=None,
-                                        include_multivariate:bool|None=None):
+                                        include_multivariate:bool|None=None ,
+                   streamlit_:bool|None = None):
         """
         where if categorical is None, columns from self.reject_null_good_of_fit will be ploted. Otherwise columns in cateigorical will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         force_significant_bin_edges==True calculates min bins that retain statistical significance
         minimize_significant_bins is ignored if force_significant_bin_edges != True, else if True, it minimizes num bins
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if include_multivariate is None:
             include_multivariate = True
         if numerical is None:
@@ -1470,7 +1476,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         kde=kde,
                                         super_title=super_title,
                                         proportions=proportions,
-                                        keep_bins_significant=keep_bins_significant)
+                                        keep_bins_significant=keep_bins_significant,
+                                            streamlit_=streamlit_)
 
         return self
         
@@ -1485,11 +1492,14 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         n_wide:int|tuple|list=(6,40,5),
                                         stacked_bars_when_max_bars_is_exceeded:bool=True,
                                         sorted:bool=False,
-                                        super_title:str|None="Categoric-To-Categoric Bivariates - Reject Null"):
+                                        super_title:str|None="Categoric-To-Categoric Bivariates - Reject Null" ,
+                   streamlit_:bool|None = None):
         """
         where if column_combinations is None, combinations from self.reject_null_catcat will be ploted. Otherwise combinations in column_combinations will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if column_combinations is None:
             column_combinations = self.reject_null_catcat
             if not column_combinations:
@@ -1500,7 +1510,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                             n_wide=n_wide,
                             stacked_bars_when_max_bars_is_exceeded=stacked_bars_when_max_bars_is_exceeded,
                             sorted=sorted,
-                            super_title=super_title)
+                            super_title=super_title,
+                                            streamlit_=streamlit_)
         return self
     
     #######################################################################################
@@ -1515,15 +1526,18 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                        linreg:bool=True,
                                        super_title:str='Numeric Bivariates With Significant Correlation(s)',
                                        plot_type_kwargs:dict|None=None,
-                                       linreg_kwargs:dict|None=None):
+                                       linreg_kwargs:dict|None=None ,
+                   streamlit_:bool|None = None):
         """
         where if column_combos is None, combinations from self.above_threshold_corr_numnum will be ploted. Otherwise combos in column_combos will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if column_combos is None:
             column_combos = self.above_threshold_corr_numnum
-            if not column_combos:
-                return print("The model does not contain any numeric-to-numeric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
+        if not column_combos:
+            return print("The model does not contain any numeric-to-numeric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
         self.bivariate_numeric_numeric_snapshot(
                                            data=data,
                                             column_combos=column_combos,
@@ -1531,7 +1545,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                             linreg=linreg,                        
                                             super_title=super_title,
                                             plot_type_kwargs=plot_type_kwargs,
-                                            linreg_kwargs=linreg_kwargs)
+                                            linreg_kwargs=linreg_kwargs,
+                                            streamlit_=streamlit_)
         return self
 
     #######################################################################################
@@ -1545,20 +1560,24 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                             column_combos:list|tuple|None=None,
                                             plot_type:str='boxen', #box, boxen, or violin
                                             n_wide:int|tuple|list=(6,40,8),
-                                            super_title:str|None='Numeric-to-Categoric Bivariates - Reject Null'):
+                                            super_title:str|None='Numeric-to-Categoric Bivariates - Reject Null' ,
+                   streamlit_:bool|None = None):
         """
         where if column_combos is None, combinations from self.reject_null_numcat will be ploted. Otherwise combos in column_combos will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if column_combos is None:
             column_combos = self.reject_null_numcat 
-            if not column_combos:
-                return print("There are not any numeric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
+        if not column_combos:
+            return print("There are not any numeric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
         self.numeric_to_categorical_snapshot(data=data,
                                             column_combos=column_combos,
                                             plot_type=plot_type,
                                             n_wide=n_wide,
-                                            super_title=super_title)
+                                            super_title=super_title,
+                                            streamlit_=streamlit_)
         return self
     
     #######################################################################################
@@ -1572,11 +1591,14 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                         row_height:int=2,
                         cols_per_row:int=3,
                         y_tick_fontsize:int=12,
-                        super_title:str|None=None):
+                        super_title:str|None=None ,
+                   streamlit_:bool|None = None):
         """
         where if supercat_subcat_pairs is None, combinations from self.supercategory_subcategory_pairs will be ploted. Otherwise combos in supercat_subcat_pairs will be ploted.
         n_wide indicates (columns wide, max sum of bars on row, row height in inches)
         """
+        if streamlit_ is None:
+            streamlit_ = False    
         if row_height is None:
             row_height=2
         if cols_per_row is None:
@@ -1597,7 +1619,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         self.plot_supercats_subcats(data, 
                                 figure_map, 
                                 super_title=super_title,
-                                *figure_plot_params
+                                *figure_plot_params,
+                                            streamlit_=streamlit_
                                 )
         return self
 
@@ -1623,7 +1646,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                   numnum_bivar_params:dict|None      =None,
                   numcat_bivar_params:dict|None      =None,
                   super_subcat_pairs_params:dict|None=None,
-                  num_univar_params:dict|None        =None ): 
+                  num_univar_params:dict|None = None ,
+                   streamlit_:bool|None = None): 
         """
         where data is the dataframe values are taken from
         cat_univar, catcat_bivar, numnum_bivar, numcat_bivar, and super_subcat_pairs
@@ -1634,7 +1658,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         cat_univar_params, catcat_bivar_params, numnum_bivar_params, numcat_bivar_params, super_subcat_pairs_params
             accept custom plot parameters
         """
-
+        if streamlit_ is None:
+            streamlit_ = False
         if cat_univar!=False:
             if cat_univar==True:
                 cat_univar=None
@@ -1645,7 +1670,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             self.plot_non_uniform_categorical(
                                             data=data,
                                             categorical=cat_univar,
-                                            **cat_univar_params)
+                                            **cat_univar_params,
+                   streamlit_ = streamlit_ )
         else:
             print('Plot Categoric Univariate is set to False')
 
@@ -1658,7 +1684,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             num_univar_params=default_num_univar_params
             self.plot_non_normal_numeric(data=data,
                                         numerical=num_univar,
-                                        **num_univar_params)
+                                        **num_univar_params,
+                   streamlit_ = streamlit_ )
         else:
             print('Plot Numeric Univariate is set to False')
 
@@ -1672,7 +1699,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             self.plot_bivariate_categoric_categoric(
                                             data=data,  
                                             column_combinations=catcat_bivar,
-                                            **catcat_bivar_params) 
+                                            **catcat_bivar_params,
+                   streamlit_ = streamlit_ ) 
         else:
             print('Plot Bivariate Categoric-Categoric is set to False')
 
@@ -1686,7 +1714,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             self.plot_bivariate_numeric_numeric(
                                             data=data,
                                             column_combos=numnum_bivar,
-                                            **numnum_bivar_params)
+                                            **numnum_bivar_params,
+                   streamlit_ = streamlit_ )
         else:
             print('Plot Bivariate Numeric-Numeric is set to False')
 
@@ -1700,7 +1729,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             self.plot_numeric_to_categoric_relationships(
                                             data=data,
                                             column_combos=numcat_bivar,
-                                            **numcat_bivar_params)
+                                            **numcat_bivar_params,
+                   streamlit_ = streamlit_ )
         else:
             print('Plot Bivariate Numeric-Categoric is set to False')
 
@@ -1714,7 +1744,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             self.plot_super_subcats(
                                     data=data,
                                     supercat_subcat_pairs=super_subcat_pairs,
-                                    **super_subcat_pairs_params)
+                                    **super_subcat_pairs_params,
+                   streamlit_ = streamlit_ ) 
         else:
             print('Plot Supercategory-Subcategory Partitions is set to False')
 
@@ -1944,7 +1975,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                     numnum_bivar_params:dict|None      =None,
                     numcat_bivar_params:dict|None      =None,
                     super_subcat_pairs_params:dict|None=None,
-                    num_univar_params:dict|None        =None 
+                    num_univar_params:dict|None        =None ,
+                    streamlit_: bool|None=None
                     ):
         """
         where data is the dataframe that holds values
@@ -1960,7 +1992,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                 not_uniform_or_reject_normal: categorical variables that don't follow a uniform distribution {rejected normal distribution not yet supported for numeric},
                 reject_multivariates: where target columns are tested/compared to concatenated variables
         """
-
+        if streamlit_ is None:
+            streamlit_ = False
         if dropna_gof is None:
             dropna_gof=self.dropna_cats
         if check_assumptions is None:
@@ -2102,7 +2135,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                 numnum_bivar_params = numnum_bivar_params,
                                 numcat_bivar_params = numcat_bivar_params,
                                 super_subcat_pairs_params = super_subcat_pairs_params,
-                                num_univar_params = num_univar_params)
+                                num_univar_params = num_univar_params,
+                                streamlit_ = streamlit_)
         # plot targets individually
         else:
             for k,v in targets_dict.items():
@@ -2142,7 +2176,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                     numnum_bivar_params = numnum_bivar_params,
                                     numcat_bivar_params = numcat_bivar_params,
                                     super_subcat_pairs_params = super_subcat_pairs_params,
-                                    num_univar_params = num_univar_params)
+                                    num_univar_params = num_univar_params,
+                                    streamlit_ = streamlit_)
                 print('= = = = = '*20)
         return self
 
@@ -2443,8 +2478,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                                         'Type',
                                                         'Distrubition',
                                                         'MaxLenCombosComparedTo'])
-        display(result_dataframe)
-        return self
+        return result_dataframe
+        
 
 
 

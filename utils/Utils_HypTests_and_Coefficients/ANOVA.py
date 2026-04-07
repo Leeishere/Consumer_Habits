@@ -247,6 +247,9 @@ class ANOVA:
         dropna=False
 
         grouped = [vals.values for _, vals in df.groupby('group',dropna=dropna)['y']]
+        if len(grouped) < 2:
+            return False   # can't test homogeneity with only 1 group
+        
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always") 
             stat, p = scipy.stats.levene(*grouped, center=center)
@@ -442,6 +445,9 @@ class ANOVA:
                                                                         retrieve_meta=True,
                                                                         dropna=dropna)
             return equal_varaice_between_groups, result_df[['is_normal','count_outliers',  'count_obs']]
+
+
+
 
         # Step 1: outliers (optionally clean first)
         outlier_result = self._anova_detect_outliers(group, y,
