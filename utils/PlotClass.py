@@ -501,18 +501,22 @@ class PlotClass:
             
 
         #create figure
-        num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
+        num_rows=max(1,len(map_cols_to_rows))
+        plot_height=(row_height*num_rows)+(2 if num_rows <=4 else 0)
+        fig = plt.figure(figsize=(20,plot_height))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
                     ncols=n_wide[0],
-                    height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=None,#[1 for i in range(num_rows)], 
                     hspace=0.75,
                     wspace=0.45
                 )
         # super title
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if map_cols_to_rows: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         # fill rows
         curr_row=0
         available_row_start_index = 0
@@ -621,18 +625,22 @@ class PlotClass:
                                                                 num_columns_per_row=n_wide[0], 
                                                             univariate=True)  # univariate True because only cat cols are counted as n_bars
         #create figure
-        num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
+        num_rows=max(1,len(map_cols_to_rows))
+        plot_height=(row_height*num_rows)+(2 if num_rows <=4 else 0)
+        fig = plt.figure(figsize=(20,plot_height))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
                     ncols=n_wide[0],
-                    height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=None,#[1 for i in range(num_rows)], 
                     hspace=0.6,
                     wspace=0.6
                 )
         # super title
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if map_cols_to_rows: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         # adjust suptitle position to avoid excessive white space issues
         fig.subplots_adjust(top=0.92)
         # fill rows
@@ -803,20 +811,24 @@ class PlotClass:
         row_height=9 
             
         #create figure
-        num_rows=(len(column_combos)//2)+(len(column_combos)%2)
+        num_rows=max(1,(len(column_combos)//2)+(len(column_combos)%2))
         num_cols=2 if len(column_combos)>1 else 1
-        fig = plt.figure(figsize=(num_cols*10,(row_height*num_rows)+2))#,constrained_layout=True)
+        plot_height=(row_height*num_rows)+(2 if num_rows <=4 else 0)
+        fig = plt.figure(figsize=(20,plot_height))#,constrained_layout=True)
         # create gridspec
         outer = fig.add_gridspec(
                     nrows=num_rows,
                     ncols=num_cols,
-                    height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=None,#[1 for i in range(num_rows)], 
                     hspace=0.3,
                     wspace=0.3
                     )
 
         # super title
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if column_combos: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         # fill rows
         for index in range(len(column_combos)):
             x_vector=data[column_combos[index][0]]
@@ -887,18 +899,22 @@ class PlotClass:
                                                                 num_columns_per_row=n_wide[0], 
                                                             univariate=True)
         #create figure
-        num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
+        num_rows=max(1,len(map_cols_to_rows))
+        plot_height=(row_height*num_rows)+(2 if num_rows <=4 else 0)
+        fig = plt.figure(figsize=(20,plot_height))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
                     ncols=n_wide[0],
-                    height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=None,#[1 for i in range(num_rows)], 
                     hspace=0.5,
                     wspace=0.45
                 )
         # super title
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if map_cols_to_rows: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         # fill rows
         curr_row=0
         available_row_start_index = 0
@@ -1003,18 +1019,22 @@ class PlotClass:
                                                                 num_columns_per_row=n_wide[0], 
                                                                 univariate=True)
         #create figure
-        num_rows=len(map_cols_to_rows)
-        fig = plt.figure(figsize=(20,(row_height*num_rows)+2))#,constrained_layout=True)
+        num_rows=max(1,len(map_cols_to_rows))
+        plot_height=(row_height*num_rows)+(2 if num_rows <=4 else 0)
+        fig = plt.figure(figsize=(20,plot_height))#,constrained_layout=True)
         # create gridspec
         gs = GridSpec(
                     nrows=num_rows,
                     ncols=n_wide[0],
-                    height_ratios=[1 for i in range(num_rows)], 
+                    height_ratios=None,#[1 for i in range(num_rows)], 
                     hspace=0.5,
                     wspace=0.45
                 )
         # super title
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if map_cols_to_rows: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         # fill rows
         curr_row=0
         available_row_start_index = 0
@@ -1043,7 +1063,8 @@ class PlotClass:
                               label='Observed',
                               legend=True,)
                 ax.set_xticks(plot_bins)
-                tenth= plot_bins[int(len(plot_bins)*.1)]
+                bincount = len(plot_bins)
+                tenth= plot_bins[int(bincount*.1)]
                 if tenth<100:
                     ax.set_xticklabels([f"{edge:,.2f}" for edge in plot_bins], rotation=45, ha='right')
                 else:
@@ -1053,7 +1074,9 @@ class PlotClass:
                     label.set_ha('right') '''
                 y_label='Count' if proportions==False else 'Proportion'
                 ax.set_ylabel(y_label)
-                plt.grid()
+                # avoid crowded gridlines
+                if bincount<=60:
+                    plt.grid()
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
@@ -1188,14 +1211,18 @@ class PlotClass:
             streamlit_ = False 
         if super_title is None:
             super_title= 'Super and Sub Categories - One Categoric Variable Partitions Another'
-        total_rows = sum(i[0] for i in figure_map)
+        true_rows = sum(i[0] for i in figure_map)
+        total_rows = max(1,true_rows)
         n_cols = len(figure_map[0][3])
         fig = plt.figure(figsize=(20,(row_height*total_rows)+2))#,constrained_layout=True)
-        plt.suptitle(super_title+'\n\n',fontsize=25)
+        if true_rows>=1: 
+            plt.suptitle(super_title+'\n\n',fontsize=25)
+        else:
+            plt.suptitle("Nothing to Plot\n"+super_title,fontsize=12)
         grid_specs = GridSpec(
                     nrows=total_rows,
                     ncols=n_cols,
-                    height_ratios=[1 for i in range(total_rows)], 
+                    height_ratios=None,#[1 for i in range(total_rows)], 
                     hspace=0.7,
                     wspace=0.45
                     )
@@ -1207,6 +1234,7 @@ class PlotClass:
             super_plot_data=data[curr_supercat_header].value_counts()
             plt.title(curr_supercat_header)
             sns.barplot(x=super_plot_data.index,y=super_plot_data.values,ax=ax_super)
+            ax_super.set_xlabel('')
             plt.grid()
             curr_subcat_header=supercat_map[2]
             # increment to the next row

@@ -14,7 +14,7 @@ try:
     from .PlotClass import PlotClass
     from .UnivariateNormal import UnivariateNormal
     from .BinnerClass import Bin
-except:
+except ImportError:
     from CompareColumns import CompareColumns
     from Utils_HypTests_and_Coefficients.Chi2 import Chi2
     from Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
@@ -378,18 +378,18 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                     # cases of [numeric, numeric] or [categoric, categoric]
                     else:
                         if len(pair)>=3:
-                            npair = sorted(pair[:2])+pair[2:]
+                            npair = sorted(pair[:2].copy())+pair[2:].copy()
                         else:
-                            npair = sorted(pair)
+                            npair = sorted(pair.copy())
                         if npair not in existing_instance:
                             vals_to_add.append(npair)
                 result = existing_instance + vals_to_add 
             else:
                 if sort_them==True:
                     if len(new_vals[0])>2:
-                        new_vals = [sorted(vl[:2]+vl[2:]) for vl in new_vals]
+                        new_vals = [sorted(vl[:2].copy())+vl[2:] for vl in new_vals]
                     else:
-                        new_vals = [sorted(vl) for vl in new_vals]
+                        new_vals = [sorted(vl.copy()) for vl in new_vals]
                 result = new_vals
             return result
         
@@ -802,13 +802,15 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             assumptions_not_met              = set(list(good_of_fit_uniform_df.loc[good_of_fit_uniform_df['assumptions_met']==False]['category'].values))
             # assumptions_not_met              = assumptions_not_met.difference(reject_null_gof)
             # assumptions_not_met              = assumptions_not_met.difference(fail_to_reject_null_gof)
-            self.assumptions_not_met['num'].update(assumptions_not_met) 
+            self.assumptions_not_met['cat'].update(assumptions_not_met) 
             # update targets dict
             for col in assumptions_not_met:
                 if self.target_key_feature_meta_vals.get(col,None)==None:
                     self.target_key_feature_meta_vals[col]=self._blank_target_dict()
                 self.target_key_feature_meta_vals[col]['assumptions_not_met']['cat']=[col]
-                
+                if (col in self.has_called_fit_column_relationships) and (not self.target_key_feature_meta_vals[col]['is_normal_or_uniform']):
+                    self.target_key_feature_meta_vals[col]['is_normal_or_uniform'] = ['assumptions_not_met_uniform']
+
         # track reject
         self.reject_null_good_of_fit.update(reject_null_gof)
         # track that what's been called
@@ -1149,114 +1151,113 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         sup_subs, true_false_list =  self._are_supercat_subcats(data,
                                            max_evidence=max_evidence,  
                                            pairs_list=pairs_list) 
-        if isolate_super_subs==True:
-            def find_member(search_val:str|list, 
-                            list_to_search:list, 
-                            search_val_type:str, 
-                            search_val_len:int|None=None):
-                """
-                reurns an index location of the search_val in the list_to_search, or returns None
-                where search_val_type can be 'string' or 'list'
-                it is assumed the vals in list_to_search are the same
-                search_val_len is used in cas of list such as search_val==list_to_search[index][:search_val_len] such as to exclude test type when searching self.reject_null_catcat
-                if search_val_len is None, only exact matches will be considered
-                """
-                location = None
-                if (search_val_type=='string') or (search_val_len is None):
-                    for possible_location, possible_value in enumerate(list_to_search):
-                            if search_val==possible_value:
-                                location=possible_location
-                                break
-                elif search_val_type=='list':
-                    for possible_location, possible_value in enumerate(list_to_search):
-                            if search_val==possible_value[:search_val_len]:
-                                location=possible_location
-                                break
-                return location  
+
+        def find_member(search_val:str|list, 
+                        list_to_search:list, 
+                        search_val_type:str, 
+                        search_val_len:int|None=None):
+            """
+            reurns an index location of the search_val in the list_to_search, or returns None
+            where search_val_type can be 'string' or 'list'
+            it is assumed the vals in list_to_search are the same
+            search_val_len is used in cas of list such as search_val==list_to_search[index][:search_val_len] such as to exclude test type when searching self.reject_null_catcat
+            if search_val_len is None, only exact matches will be considered
+            """
+            location = None
+            if (search_val_type=='string') or (search_val_len is None):
+                for possible_location, possible_value in enumerate(list_to_search):
+                        if search_val==possible_value:
+                            location=possible_location
+                            break
+            elif search_val_type=='list':
+                for possible_location, possible_value in enumerate(list_to_search):
+                        if search_val==possible_value[:search_val_len]:
+                            location=possible_location
+                            break
+            return location  
        
 
 
         for tf_bool, cols in zip(true_false_list,sup_subs):
-            # store record of fit columns in class.The pairs should already have been filtered in self._are_supercat_subcats()
-            if ((isolate_super_subs==False) or (tf_bool==False)) and (sorted(cols) not in self.has_called_fit_supercat_subcat_pairs):
-                self.has_called_fit_supercat_subcat_pairs.append(sorted(cols.copy()))
             if tf_bool==True:
                 if cols not in self.supercategory_subcategory_pairs:
                     self.supercategory_subcategory_pairs.append(cols)
+            # store record of fit columns in class.The pairs should already have been filtered in self._are_supercat_subcats()
+            if (sorted(cols.copy()) not in self.has_called_fit_supercat_subcat_pairs):
+                self.has_called_fit_supercat_subcat_pairs.append(sorted(cols.copy()))
 
-                # >remove supercat subcat pairs from self.reject_null_catcat  the next loop stores them based on targets
-                if isolate_super_subs==True:
-                    index_loc = find_member(sorted(cols.copy()), 
-                                                    self.reject_null_catcat, 
-                                                    search_val_type='list', 
-                                                    search_val_len=2)
-                    if index_loc is not None:
-                        try:
-                            discard = self.reject_null_catcat.pop(index_loc)
-                        except:
-                            if index_loc<len(self.reject_null_catcat)-1:
-                                self.reject_null_catcat = self.reject_null_catcat[:index_loc] + self.reject_null_catcat[index_loc+1:]
-                            else:
-                                self.reject_null_catcat = self.reject_null_catcat[:index_loc]   
-       
+            
+            #identify each
+            super, sub = cols[0], cols[1]
+            super_test, sub_test =  None, None
+            super_index=find_member(super, 
+                        self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'],
+                        search_val_type='string', 
+                        search_val_len=None)
+            if super_index is not None:
+                # capture test
+                super_test = self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][super_index]
 
-                #identify each
-                super, sub = cols[0], cols[1]
-                super_test, sub_test = '', '' 
+            sub_index=find_member(sub, 
+                                self.target_key_feature_meta_vals[super]['significant_categoric_relationships'], 
+                                    search_val_type='string', 
+                                    search_val_len=None)
+            if sub_index is not None:
+                # capture test
+                sub_test = self.target_key_feature_meta_vals[super]['significant_categoric_tests'][sub_index]
 
-                if isolate_super_subs==True:
-                # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
-                    if super in self.has_called_fit_column_relationships:
-                        sub_index=find_member(sub, 
-                                            self.target_key_feature_meta_vals[super]['significant_categoric_relationships'], 
-                                                search_val_type='string', 
-                                                search_val_len=None)
-                        if sub_index is not None:
-                            # capture test
-                            sub_test = self.target_key_feature_meta_vals[super]['significant_categoric_tests'][sub_index]
+            # >remove supercat subcat pairs from self.reject_null_catcat  the next loop stores them based on targets
+            if isolate_super_subs==True:
+                index_loc = find_member(sorted(cols.copy()), 
+                                                self.reject_null_catcat, 
+                                                search_val_type='list', 
+                                                search_val_len=2)
+                if index_loc is not None:
+                    try:
+                        discard = self.reject_null_catcat.pop(index_loc)
+                    except:
+                        if index_loc<len(self.reject_null_catcat)-1:
+                            self.reject_null_catcat = self.reject_null_catcat[:index_loc] + self.reject_null_catcat[index_loc+1:]
+                        else:
+                            self.reject_null_catcat = self.reject_null_catcat[:index_loc]      
 
-                            try:
-                                discard_col=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'].pop(sub_index)
-                                discard_test=self.target_key_feature_meta_vals[super]['significant_categoric_tests'].pop(sub_index)
-                            except:
-                                if sub_index<(len(self.target_key_feature_meta_vals[super]['significant_categoric_relationships'])-1):
-                                    self.target_key_feature_meta_vals[super]['significant_categoric_relationships']=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][:sub_index]+self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][sub_index+1:]
-                                    self.target_key_feature_meta_vals[super]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[super]['significant_categoric_tests'][:sub_index]+self.target_key_feature_meta_vals[super]['significant_categoric_tests'][sub_index+1:]
-                                else:
-                                    self.target_key_feature_meta_vals[super]['significant_categoric_relationships']=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][:sub_index]
-                                    self.target_key_feature_meta_vals[super]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[super]['significant_categoric_tests'][:sub_index]
-                        
                 
-                    # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
-                    if sub in self.has_called_fit_column_relationships:
-                        super_index=find_member(super, 
-                                                self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'],
-                                                search_val_type='string', 
-                                                search_val_len=None)
-                        if super_index is not None:
-                            # capture test
-                            super_test = self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][super_index]
+                # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
+                if super in self.has_called_fit_column_relationships:
 
-                            try:
-                                discard_col=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'].pop(super_index)
-                                discard_test=self.target_key_feature_meta_vals[sub]['significant_categoric_tests'].pop(super_index)
-                            except:
-                                if super_index<(len(self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'])-1):
-                                    self.target_key_feature_meta_vals[sub]['significant_categoric_relationships']=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][:super_index]+self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][super_index+1:]
-                                    self.target_key_feature_meta_vals[sub]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][:super_index]+self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][super_index+1:]
-                                else:
-                                    self.target_key_feature_meta_vals[sub]['significant_categoric_relationships']=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][:super_index]
-                                    self.target_key_feature_meta_vals[sub]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][:super_index]
-                        
-                # UPDATE TARGETS by adding super/sub and tests
-                if (sub in self.has_called_fit_column_relationships) and (super not in self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory']):
-                    if super_test:
-                        self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory_tests'].append(super_test)
-                    self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory'].append(super)
-                if (super in self.has_called_fit_column_relationships) and (sub not in self.target_key_feature_meta_vals[super]['paired_to_a_subcategory']):
-                    if sub_test:
-                        self.target_key_feature_meta_vals[super]['paired_to_a_subcategory_tests'].append(sub_test)
-                    self.target_key_feature_meta_vals[super]['paired_to_a_subcategory'].append(sub)
+                        try:
+                            discard_col=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'].pop(sub_index)
+                            discard_test=self.target_key_feature_meta_vals[super]['significant_categoric_tests'].pop(sub_index)
+                        except:
+                            if sub_index<(len(self.target_key_feature_meta_vals[super]['significant_categoric_relationships'])-1):
+                                self.target_key_feature_meta_vals[super]['significant_categoric_relationships']=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][:sub_index]+self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][sub_index+1:]
+                                self.target_key_feature_meta_vals[super]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[super]['significant_categoric_tests'][:sub_index]+self.target_key_feature_meta_vals[super]['significant_categoric_tests'][sub_index+1:]
+                            else:
+                                self.target_key_feature_meta_vals[super]['significant_categoric_relationships']=self.target_key_feature_meta_vals[super]['significant_categoric_relationships'][:sub_index]
+                                self.target_key_feature_meta_vals[super]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[super]['significant_categoric_tests'][:sub_index]
+                    
+            
+                # update targets by removing super/sub and capturing tests. both will be used to update super/sub values in dict
+                if sub in self.has_called_fit_column_relationships:
+
+                        try:
+                            discard_col=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'].pop(super_index)
+                            discard_test=self.target_key_feature_meta_vals[sub]['significant_categoric_tests'].pop(super_index)
+                        except:
+                            if super_index<(len(self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'])-1):
+                                self.target_key_feature_meta_vals[sub]['significant_categoric_relationships']=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][:super_index]+self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][super_index+1:]
+                                self.target_key_feature_meta_vals[sub]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][:super_index]+self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][super_index+1:]
+                            else:
+                                self.target_key_feature_meta_vals[sub]['significant_categoric_relationships']=self.target_key_feature_meta_vals[sub]['significant_categoric_relationships'][:super_index]
+                                self.target_key_feature_meta_vals[sub]['significant_categoric_tests']        =        self.target_key_feature_meta_vals[sub]['significant_categoric_tests'][:super_index]
+                    
+            # UPDATE TARGETS by adding super/sub and tests
+            if (sub in self.has_called_fit_column_relationships) and (super not in self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory']):
+                self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory_tests'].append(super_test)
+                self.target_key_feature_meta_vals[sub]['paired_to_a_supercategory'].append(super)
+            if (super in self.has_called_fit_column_relationships) and (sub not in self.target_key_feature_meta_vals[super]['paired_to_a_subcategory']):
+                self.target_key_feature_meta_vals[super]['paired_to_a_subcategory_tests'].append(sub_test)
+                self.target_key_feature_meta_vals[super]['paired_to_a_subcategory'].append(sub)
         return self
     
 
@@ -2402,7 +2403,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         and returns a dataframe that includes:
                                                 'Target',
                                                 'Type',
-                                                'Distrubition',
+                                                'Distribution',
                                                 'MaxLenCombosComparedTo'
                                                 'FeatureColum(s)'
                                                 'Test(s)'
@@ -2463,20 +2464,24 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             grand_target_col              += [target]*height
             grand_max_multivar_combo_size += self.target_key_feature_meta_vals[target]['max_n_variates_paired_with'].copy()*height
             grand_data_type               += self.target_key_feature_meta_vals[target]['target_dtype'].copy()*height
-            grand_is_normal_or_uniform    += self.target_key_feature_meta_vals[target]['is_normal_or_uniform'].copy()*height
+            if not self.target_key_feature_meta_vals[target]['is_normal_or_uniform']: 
+                print(target)
+                grand_is_normal_or_uniform    +=[pd.NA]*height
+            else:
+                grand_is_normal_or_uniform    += self.target_key_feature_meta_vals[target]['is_normal_or_uniform'].copy()*height
 
             grand_feature_variables       += feature_variables
             grand_test_types              += test_types
 
         result_dataframe = pd.DataFrame({'Target':grand_target_col,
                                         'Type':grand_data_type,
-                                        'Distrubition':grand_is_normal_or_uniform,
+                                        'Distribution':grand_is_normal_or_uniform,
                                         'MaxLenCombosComparedTo':grand_max_multivar_combo_size,
                                         'FeatureColum(s)':grand_feature_variables,
                                         'Test(s)':grand_test_types})
         result_dataframe = result_dataframe.set_index(['Target',
                                                         'Type',
-                                                        'Distrubition',
+                                                        'Distribution',
                                                         'MaxLenCombosComparedTo'])
         return result_dataframe
         
