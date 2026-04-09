@@ -4,7 +4,17 @@ import streamlit as st
 
 from utils.AnalyzeDataset import AnalyzeDataset
 
-
+# ======================================|
+# FLOW CONTROL VARIABLES                |
+# ======================================|
+# st.session_state.preprocessing_done   |
+# st.session_state.early_stop           |
+# st.session_state.drops_complete       |
+# st.session_state.types_confirmed      |
+# st.session_state.dates_pieced         |
+# st.session_state.is_ready_for_fit     |
+# st.session_state.fit                  |
+# --------------------------------------|
 
 
 
@@ -128,9 +138,12 @@ if 'max_unique_pct_of_total_ie_identifier_variable_ID' not in st.session_state:
 if 'max_pct_unique_for_numtype_cattype_threshold' not in st.session_state:
     st.session_state.max_pct_unique_for_numtype_cattype_threshold = None
 
-if 'preprocessed_data' not in st.session_state:
-    st.session_state.preprocessed_data = None
-#   if  ( (st.session_state.drops_complete == False) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == False) and (st.session_state.is_ready_for_fit == False) ):
+if 'early_stop' not in st.session_state:
+    st.session_state.early_stop = None
+    
+def set_page():
+    st.session_state.page = st.session_state.navigation_control
+
 
 
 
@@ -143,7 +156,11 @@ if st.session_state.page == "Data Upload & Processing":
 
         # Page navigation #
         st.header("Navigation")        
-        st.session_state.page = st.radio("Navigate", ["Data Upload & Processing", "Group Visualizations", "Target Visualizations"], index=["Data Upload & Processing", "Group Visualizations", "Target Visualizations"].index(st.session_state.page))
+        st.session_state.page = st.radio("Navigate", 
+                                         ["Data Upload & Processing", "Group Visualizations", "Target Visualizations"], 
+                                         index=["Data Upload & Processing", "Group Visualizations", "Target Visualizations"].index(st.session_state.page),
+                                         key = 'navigation_control',
+                                         on_change = set_page)
 
         st.header("Threshold Adjustments")
         
@@ -233,7 +250,7 @@ if st.session_state.page == "Data Upload & Processing":
         st.session_state.min_pct_non_null_to_propose_a_dtype                        = 0.99
         st.session_state.max_pct_unique_for_numtype_cattype_threshold               = 0.005 # over for num <= for cat
         st.session_state.max_date_cols_used                                         = 5
-        st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID          = 0.75  # percentage of all observations that are unique to a columns, such as ID number or unique locations
+        st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID          = 0.4  # percentage of all observations that are unique to a columns, such as ID number or unique locations
 
 
 
@@ -248,21 +265,27 @@ if st.session_state.page == "Data Upload & Processing":
                 # Read CSV to DataFrame
                 # Only re-read CSV when a new file is uploaded; preserve session state data across reruns
                 if st.session_state.uploaded_file_name != uploaded_file.name:
+                    st.session_state.drops_complete, st.session_state.types_confirmed, st.session_state.dates_pieced = False, False, False
+                    st.session_state.fit, st.session_state.preprocessing_done, st.session_state.is_ready_for_fit     = False, False, False
+                    st.session_state.early_stop = False
+
                     st.session_state.uploaded_file_name = uploaded_file.name
-                    st.session_state.data = pd.read_csv(uploaded_file)                    
-                    st.session_state.preprocessing_done = False
+                    st.session_state.data = pd.read_csv(uploaded_file)   
+                    if len(st.session_state.data.shape)<2:
+                        st.session_state.data = st.session_state.data.to_frame()
                     # capture original len and shape
                     st.session_state.original_len = len(st.session_state.data)
                     st.session_state.original_shape = st.session_state.data.shape
 
                     # display a sample
-                    st.markdown('10 sample rows of existing values')
-                    st.dataframe(st.session_state.data.sample(min(10, len(st.session_state.data))))
+                    st.markdown('5 sample rows of existing values')
+                    st.dataframe(st.session_state.data.sample(min(5, len(st.session_state.data))))
 
-                if  ( (st.session_state.drops_complete == False) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == False) and (st.session_state.is_ready_for_fit == False) ):
+                if  (  (not st.session_state.early_stop) and (st.session_state.drops_complete == False) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == False) and (st.session_state.is_ready_for_fit == False) ):
 
                     # Drop nulls
-                    st.session_state.data = st.session_state.data.dropna()
+                    # DROPNA NOT REQUIRED. MODULE WILL HANDLE NAN INTERNALLY
+                    #st.session_state.data = st.session_state.data.dropna()
 
                     new_len = len(st.session_state.data)
 
@@ -330,7 +353,7 @@ if st.session_state.page == "Data Upload & Processing":
 
                     st.session_state.preprocessing_done = True
 
-                if  ( (st.session_state.drops_complete == False) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
+                if  (  (not st.session_state.early_stop) and (st.session_state.drops_complete == False) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
 
                     # Restore detection results from session state on reruns
                     new_len = len(st.session_state.data)
@@ -339,17 +362,21 @@ if st.session_state.page == "Data Upload & Processing":
                     over_unique_threshold = st.session_state.over_unique_threshold
                     # display datatypes as df
 
-                    st.title('Drop Columns')
                     transition_df = st.session_state.datatypes_df.copy().T
-
+                    id_mask   = (transition_df['n_unique']>1)
+                    auto_drop = transition_df.loc[~id_mask].index  
+                    st.header("Drop Columns")
+                    if len(auto_drop)>0:
+                        st.info(f"Some columns have only one unique value and will be dropped by default:  {[i for i in auto_drop]}")
+                        transition_df = transition_df.loc[id_mask]
                     # capture identifier variables now 
-                    identifier_df = transition_df.loc[over_unique_threshold,['original_dtype', 'possible_change', 'n_unique']]
+                    identifier_df = transition_df.loc[[i for i in over_unique_threshold if i not in auto_drop],['original_dtype', 'possible_change', 'n_unique']]
                     identifier_df['pct_unique'] = identifier_df['n_unique']/new_len
                     id_orig_str, id_poss_str = identifier_df['original_dtype'].astype(str), identifier_df['possible_change'].astype(str)
-                    identifier_df['to_drop'] = (id_orig_str.isin(['category','object']) & id_poss_str.isin(['category','object']))
-                    identifier_df = identifier_df[['original_dtype', 'possible_change','pct_unique','to_drop']]
+                    identifier_df['to_drop'] = ((id_orig_str.isin(['category','object']) & id_poss_str.isin(['category','object'])) )
+                    identifier_df['pct_unique'] = round((identifier_df['pct_unique']*100).astype(float),2)
+                    identifier_df = identifier_df[['original_dtype', 'possible_change', 'pct_unique', 'to_drop']]
                     # engage user
-                    st.title("Drop Columns")
                     st.markdown("For Best Results, Drop Columns That Have a High Percentage of Unique or Distinct Values. Such as Identifier ID's")
                     drop_col_left, drop_col_right = st.columns([2, 1])
                     with drop_col_left:
@@ -358,7 +385,7 @@ if st.session_state.page == "Data Upload & Processing":
                         st.markdown("**Also drop any additional columns:**")
                         extra_cols_to_drop = st.multiselect(
                             "Select columns to drop",
-                            options=list(st.session_state.data.columns),
+                            options=list(i for i in st.session_state.data.columns if i not in auto_drop),
                             default=[]
                         )
                     process_drop = st.button("Drop Columns")
@@ -367,15 +394,22 @@ if st.session_state.page == "Data Upload & Processing":
                     cols_to_drop = []
                     if process_drop:
                         cols_to_drop = list(st.session_state.user_drop_instrucitons.loc[st.session_state.user_drop_instrucitons['to_drop']==True].index)
-                        cols_to_drop = list(set(cols_to_drop + list(extra_cols_to_drop)))
+                        cols_to_drop = list(set(cols_to_drop + list(extra_cols_to_drop) + list(auto_drop)))
                         st.session_state.data = st.session_state.data.drop(columns=cols_to_drop, errors='ignore')
+                        if len(st.session_state.data.shape)<2:
+                            st.session_state.data = st.session_state.data.to_frame()
                         st.session_state.datatypes_df = st.session_state.datatypes_df.drop(columns=cols_to_drop, errors='ignore')
+                        if 0 < len(st.session_state.data.shape) < 2:
+                            st.session_state.data = st.session_state.data.to_frame()
+                        if st.session_state.data.shape[1] == 0:
+                            st.info("All Columns Have Been Dropped. There is No Data to Process.")
+                            st.session_state.early_stop = True
                         
                         st.session_state.drops_complete = True
 
-                if  ( (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
+                if  ( (not st.session_state.early_stop) and (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == False) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
 
-                    st.title('Confirm Data Types')
+                    st.header('Confirm Data Types')
                     transition_df = st.session_state.datatypes_df.copy().T
                     # Restore detection results from session state on reruns
                     new_len = len(st.session_state.data)
@@ -413,9 +447,13 @@ if st.session_state.page == "Data Upload & Processing":
                         st.session_state.types_confirmed = True
 
 
-                if  ( (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == True) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
-
-                    procede_w_date = st.button("Part Date(s).\nEg: 'Year','Quarter', ...")
+                if  (  (not st.session_state.early_stop) and (st.session_state.date_columns) and (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == True) and (st.session_state.dates_pieced == False) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
+                    st.header("Part Dates\nEg: 'Year', 'Quarter', 'Month', ...\nOr Drop Dates")
+                    procede_w_date_col_left, drop_dates_col_right = st.columns([1,2])
+                    with procede_w_date_col_left:
+                        procede_w_date = st.button("Part Dates")
+                    with drop_dates_col_right:
+                        drop_dates = st.button("Drop Dates")
 
                     # Restore detection results from session state on reruns
                     new_len = len(st.session_state.data)
@@ -423,15 +461,15 @@ if st.session_state.page == "Data Upload & Processing":
                     native_date_cols = st.session_state.native_date_cols
                     over_unique_threshold = st.session_state.over_unique_threshold
 
+                    # Limit to st.session_state.max_date_cols_used = None date columns
+                    cols_to_drop = []
+                    if len(date_columns) > st.session_state.max_date_cols_used:
+                        # Keep first 2, drop others
+                        cols_to_drop = date_columns[st.session_state.max_date_cols_used:]
+                        date_columns = date_columns[:st.session_state.max_date_cols_used]
+
                     # extract useful info from date/datetime columns
                     if procede_w_date:
-                        # Limit to st.session_state.max_date_cols_used = None date columns
-                        cols_to_drop = []
-                        if len(date_columns) > st.session_state.max_date_cols_used:
-                            # Keep first 2, drop others
-                            cols_to_drop = date_columns[st.session_state.max_date_cols_used:]
-                            date_columns = date_columns[:st.session_state.max_date_cols_used]
-                        
                         # Create categorical variables from dates
                         for col in date_columns:
                             curr_cols = set(st.session_state.data.columns)
@@ -496,20 +534,23 @@ if st.session_state.page == "Data Upload & Processing":
                             except:
                                 pass
                                 
-                            
+                    if procede_w_date or drop_dates:        
                         # Drop original date columns (full date/datetime only, not extracted parts like year/month/day)
                         full_date_cols_to_drop = date_columns + cols_to_drop
                         if full_date_cols_to_drop:
                             st.session_state.data = st.session_state.data.drop(columns=full_date_cols_to_drop,errors='ignore')
+                            if len(st.session_state.data.shape)<2:
+                                st.session_state.data = st.session_state.data.to_frame()
 
                         st.session_state.dates_pieced = True
 
-                if  ( (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == True) and (st.session_state.dates_pieced == True) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
+                if  ( (not st.session_state.early_stop) and  (st.session_state.drops_complete == True) and (st.session_state.types_confirmed == True) and ((st.session_state.dates_pieced == True) or (not st.session_state.date_columns)) and (st.session_state.fit == False) and (st.session_state.preprocessing_done == True) and (st.session_state.is_ready_for_fit == False) ):
 
                             
                             # Drop nulls part 2
-                            # revise new_len   # this can drop up to 10% of un-dropped columns due to 95% allowance of pd.NaT 2*
-                            st.session_state.data = st.session_state.data.dropna()
+                            # revise new_len   # this can drop up to n% of un-dropped columns due to % allowance of pd.NaT in coerce errors
+                            # DROPNA NOT REQUIRED. MODULE WILL HANDLE NAN INTERNALLY
+                            #st.session_state.data = st.session_state.data.dropna()
                             new_len = len(st.session_state.data)
                             dropped = st.session_state.original_len  - new_len 
                             dropped_pct = (dropped / st.session_state.original_len) * 100 if st.session_state.original_len > 0 else 0
@@ -588,7 +629,11 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
         # Page navigation #
         st.header("Navigation")
-        st.session_state.page = st.radio("", ["Data Upload & Processing", "Group Visualizations", "Target Visualizations"], index=["Data Upload & Processing", "Group Visualizations", "Target Visualizations"].index(st.session_state.page))
+        st.session_state.page = st.radio("Navigation", 
+                                         ["Data Upload & Processing", "Group Visualizations", "Target Visualizations"], 
+                                         index=["Data Upload & Processing", "Group Visualizations", "Target Visualizations"].index(st.session_state.page),
+                                         key = 'navigation_control',
+                                         on_change = set_page)
 
         st.header("Plot Layout Controls")
         
@@ -623,8 +668,8 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         st.session_state.num_univar_params['force_significant_bin_edges'] = True #if selected_force == "True" else None
         
         # minimize_significant_bins
-        minimize_options = ["None", "True"]
-        current_minimize = "True" if st.session_state.num_univar_params.get('minimize_significant_bins') else "None"
+        minimize_options = ["False", "True"]
+        current_minimize = "True" if st.session_state.num_univar_params.get('minimize_significant_bins') else "False"
         selected_minimize = st.selectbox("Minimize significant bins", minimize_options, index=minimize_options.index(current_minimize))
         st.session_state.num_univar_params['minimize_significant_bins'] = True if selected_minimize == "True" else None
         
@@ -699,10 +744,12 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
             try:
                 plot_selection = st.segment_control("Select a Group to Plot", 
                                                 plot_overview_type_index_position,
-                                                selection_mode="single")
+                                                selection_mode="single",
+                                                default=None)
             except:
                 plot_selection = st.selectbox("Select a Group to Plot", 
-                                                plot_overview_type_index_position)
+                                                plot_overview_type_index_position,
+                                                index=None)
             if plot_selection:
                 univar_and_bivar_col_lists = [
                                             {'num_univar':list(st.session_state.AD.reject_null_normal),
@@ -767,10 +814,12 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
             try:
                 variable_selection = st.segment_control("Select Variables to Plot", 
                                         list(st.session_state.data.columns),
-                                        selection_mode="multi")
+                                        selection_mode="multi",
+                                        default=None)
             except:
                 variable_selection = st.multiselect("Select Variables to Plot", 
-                                        list(st.session_state.data.columns))
+                                        list(st.session_state.data.columns),
+                                        default=None)
 
             
 
@@ -787,7 +836,8 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                                                         selection_mode="multi")
             except:
                 plot_type_selection = st.multiselect("Select a Plot Type", 
-                                                        available_ploting_options)
+                                                        available_ploting_options,
+                                                        default=None)
 
             plot_selections = st.button("Plot Selections")
             if plot_selections:

@@ -1322,7 +1322,7 @@ class ANOVA:
                                                           numeric_target=numeric_target,
                                                           cols_to_exclude_from_targets=cols_to_exclude_from_targets)
         if len(combinations)<1:
-            return pd.DataFrame(columns=['category','numeric','P-value'])
+            return pd.DataFrame(columns=['category','numeric','P-value'] if check_assumptions==False else ['category','numeric','P-value','assumptions_met'])
         res_dict={'category':[],'numeric':[],'P-value':[]}
         if check_assumptions==True:
             res_dict['assumptions_met']=[]
@@ -1361,7 +1361,7 @@ class ANOVA:
         Where col in positions [0] is catigorical and [1] is numeric
         """
         
-        data=pd.DataFrame(two_col_cat_num_df.copy())  
+        data=pd.DataFrame(two_col_cat_num_df.copy())
         cols=data.columns
         x = cols[0]
         y = cols[1]
@@ -1382,6 +1382,8 @@ class ANOVA:
         #where k is number of groups and N is total observations
         k=grouped_data.shape[0]
         N=data.shape[0]
+        if (N<2) or (k<2):
+            return np.nan
         #print(f"(12/(N*(N+1))): {(12/(N*(N+1)))}, ((grouped_data['sum']**2)/grouped_data['size']) {((grouped_data['sum']**2)/grouped_data['size'])}, (3*(N+1)) {(3*(N+1))}, np.sum(  ((grouped_data['sum']**2)/grouped_data['size']) - (3*(N+1))  ) {(  np.sum((grouped_data['sum']**2)/grouped_data['size']) - (3*(N+1))  )}")
         h_statistic =  (12/(N*(N+1)))   *  np.sum(  ((grouped_data['sum']**2)/grouped_data['size'])) - (3*(N+1))  
         dof = k-1
@@ -1441,7 +1443,7 @@ class ANOVA:
                                                           cols_to_exclude_from_targets=cols_to_exclude_from_targets)
 
         if len(combinations)<1:
-            return pd.DataFrame(columns=['category','numeric','P-value'])
+            return pd.DataFrame(columns=['category','numeric','P-value'] if check_assumptions==False else ['category','numeric','P-value','assumptions_met'])
         res_dict={'category':[],'numeric':[],'P-value':[]}
         if check_assumptions==True:
             res_dict['assumptions_met']=[]

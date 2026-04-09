@@ -42,9 +42,9 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                  #continuous_binned_suffix:str='-ADcont-Binned',
                  #categorical_ordinalized_suffix:str='-ADcat-Ordinalized',
                  auto_bin:bool|None                                       =None, 
-                 multivariate_params:dict|None                            = None,
+                 multivariate_params:dict|None                            =None,
                  supercat_subcat_params:dict|None                         =None,
-                 dropna_cats:bool|None=None,
+                 dropna_cats:bool|None                                    =None,
                  check_assumptions:bool|None                              =None,
                  anova_assumption_check_params:dict|None                  =None,
                  kruskal_assumption_check_params:dict|None                =None,
@@ -822,9 +822,13 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
 
         # update target dict: self.target_key_feature_meta_vals
         for col in list(reject_null_gof):
+            if self.target_key_feature_meta_vals.get(col,None)==None:
+                self.target_key_feature_meta_vals[col]=self._blank_target_dict()
             if (col in self.has_called_fit_column_relationships) and (not self.target_key_feature_meta_vals[col]['is_normal_or_uniform']):
                 self.target_key_feature_meta_vals[col]['is_normal_or_uniform']=['reject_uniform']
         for col in list(fail_to_reject_null_gof):
+            if self.target_key_feature_meta_vals.get(col,None)==None:
+                self.target_key_feature_meta_vals[col]=self._blank_target_dict()
             if (col in self.has_called_fit_column_relationships) and (not self.target_key_feature_meta_vals[col]['is_normal_or_uniform']):
                 self.target_key_feature_meta_vals[col]['is_normal_or_uniform']=['fail_to_reject_uniform']
         return  self
@@ -886,9 +890,13 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
 
         # update target dict: self.target_key_feature_meta_vals
         for col in list(reject_null_normal):
+            if self.target_key_feature_meta_vals.get(col,None)==None:
+                self.target_key_feature_meta_vals[col]=self._blank_target_dict()
             if (not self.target_key_feature_meta_vals[col]['is_normal_or_uniform']) and (col in self.has_called_fit_column_relationships):
                 self.target_key_feature_meta_vals[col]['is_normal_or_uniform']=['reject_normal']
         for col in list(fail_to_reject_null_normal):
+            if self.target_key_feature_meta_vals.get(col,None)==None:
+                self.target_key_feature_meta_vals[col]=self._blank_target_dict()
             if (not self.target_key_feature_meta_vals[col]['is_normal_or_uniform']) and (col in self.has_called_fit_column_relationships):
                 self.target_key_feature_meta_vals[col]['is_normal_or_uniform']=['fail_to_reject_normal']
         return  self
@@ -1409,8 +1417,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             categorical = list(self.reject_null_good_of_fit)
         elif isinstance(categorical,str):
             categorical = [categorical]
-            if not categorical:
-                return print("There are not any non-uniform categorical variables stored in the model.\nEither none exist, or they haven't been fit.")
+        if (not categorical) and (not streamlit_):
+            warnings.warn("There are not any non-uniform categorical variables stored in the model.\nEither none exist, or they haven't been fit.")
 
         self.univariate_categorical_snapshot(
                                         data=data,
@@ -1450,8 +1458,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             include_multivariate = True
         if numerical is None:
             numerical = list(self.reject_null_normal)
-            if not numerical:
-                return print("There are not any non-normal numerical variables stored in the model.\nEither none exist, or they haven't been fit.")
+        if (not numerical) and (not streamlit_):
+            warnings.warn("There are not any non-normal numerical variables stored in the model.\nEither none exist, or they haven't been fit.")
         if isinstance(numerical,str):
             numerical = [numerical]
         keep_bins_significant = {}
@@ -1503,8 +1511,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             streamlit_ = False    
         if column_combinations is None:
             column_combinations = self.reject_null_catcat
-            if not column_combinations:
-                return print("The model does not contain any categoric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
+        if (not column_combinations) and (not streamlit_):
+            warnings.warn("The model does not contain any categoric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
         self.bivariate_categorical_snapshot(
                             data=data,
                             column_combinations=column_combinations,                        
@@ -1537,8 +1545,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             streamlit_ = False    
         if column_combos is None:
             column_combos = self.above_threshold_corr_numnum
-        if not column_combos:
-            return print("The model does not contain any numeric-to-numeric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
+        if (not column_combos) and (not streamlit_):
+            warnings.warn("The model does not contain any numeric-to-numeric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
         self.bivariate_numeric_numeric_snapshot(
                                            data=data,
                                             column_combos=column_combos,
@@ -1571,8 +1579,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             streamlit_ = False    
         if column_combos is None:
             column_combos = self.reject_null_numcat 
-        if not column_combos:
-            return print("There are not any numeric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
+        if (not column_combos)  and (not streamlit_):
+            warnings.warn("There are not any numeric-to-categoric column pairs with significant relationships.\nEither none exist, or they haven't been fit.")
         self.numeric_to_categorical_snapshot(data=data,
                                             column_combos=column_combos,
                                             plot_type=plot_type,
@@ -1610,8 +1618,8 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             super_title = "Supercategory-Subcategory - One Categoriec Variable Partitions Another"
         if supercat_subcat_pairs is None:
             supercat_subcat_pairs = self.supercategory_subcategory_pairs
-            if not supercat_subcat_pairs:
-                return print("There are not any Supercategory-Subcategory relationships to plot.\nEither none exist, or they haven't been fit.")
+        if (not supercat_subcat_pairs) and (not streamlit_):
+            warnings.warn("There are not any Supercategory-Subcategory relationships to plot.\nEither none exist, or they haven't been fit.")
         figure_map, figure_plot_params = self._prep_super_subcat_figure_maps(data, 
                                                 supercat_subcat_pairs = supercat_subcat_pairs, 
                                                 row_height=row_height, 
@@ -2433,7 +2441,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             feature_variables         = []
             test_types                = []
 
-            # fist  set of many list concatinations
+            # first  set of many list concatinations
             feature_variables         += self.target_key_feature_meta_vals[target]['significant_numeric_relationships']
             test_types                += self.target_key_feature_meta_vals[target]['significant_numeric_tests']
             feature_variables         += self.target_key_feature_meta_vals[target]['significant_categoric_relationships']
@@ -2461,17 +2469,17 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             # use the len of the concated values to future multi-index
             height                     = len(feature_variables)
             # concate target results to the grand dataframe columns
-            grand_target_col              += [target]*height
-            grand_max_multivar_combo_size += self.target_key_feature_meta_vals[target]['max_n_variates_paired_with'].copy()*height
-            grand_data_type               += self.target_key_feature_meta_vals[target]['target_dtype'].copy()*height
-            if not self.target_key_feature_meta_vals[target]['is_normal_or_uniform']: 
-                print(target)
-                grand_is_normal_or_uniform    +=[pd.NA]*height
-            else:
-                grand_is_normal_or_uniform    += self.target_key_feature_meta_vals[target]['is_normal_or_uniform'].copy()*height
+            if height>0:
+                grand_target_col              += [target]*height
+                grand_max_multivar_combo_size += self.target_key_feature_meta_vals[target]['max_n_variates_paired_with'].copy()*height
+                grand_data_type               += self.target_key_feature_meta_vals[target]['target_dtype'].copy()*height
+                if not self.target_key_feature_meta_vals[target]['is_normal_or_uniform']: 
+                    grand_is_normal_or_uniform    +=[pd.NA]*height
+                else:
+                    grand_is_normal_or_uniform    += self.target_key_feature_meta_vals[target]['is_normal_or_uniform'].copy()*height
 
-            grand_feature_variables       += feature_variables
-            grand_test_types              += test_types
+                grand_feature_variables       += feature_variables
+                grand_test_types              += test_types
 
         result_dataframe = pd.DataFrame({'Target':grand_target_col,
                                         'Type':grand_data_type,

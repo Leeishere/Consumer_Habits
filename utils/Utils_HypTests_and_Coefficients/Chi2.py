@@ -45,12 +45,12 @@ class Chi2:
         elif _series==True:
             if type(data)!=pd.Series:
                 raise RuntimeError('_series==True, but found type: ',type(data))
-            elif (data.min().any()<1) or  ( (data<5).sum().sum() > (data.shape[0]*.2) ):
+            elif (data.min()<1) or  ( (data<5).sum().sum() > (data.shape[0]*.2) ):
                 return False
         elif _series==False:
             if type(data)!=pd.DataFrame:
-                raise RuntimeError('_series==False. Expected: pd.DataFrame bur found type: ',type(data))
-            elif (data.min().min().any()<1) or  ( ((data<5).sum().sum()) > ((data.shape[0]*data.shape[1])*.2) ):
+                raise RuntimeError('_series==False. Expected: pd.DataFrame but found type: ',type(data))
+            elif (data.min().min()<1) or  ( ((data<5).sum().sum()) > ((data.shape[0]*data.shape[1])*.2) ):
                 return False
         return True
 
@@ -203,7 +203,7 @@ class Chi2:
             columns = list( set( columns+target ) )
             combinations = [(targ, col) for targ in target for col in columns if targ != col]
         if not combinations:            
-            return pd.DataFrame(columns=['category_a','category_b','P-value'])
+            return pd.DataFrame(columns=['category_a','category_b','P-value'] if check_assumptions==False else ['category_a','category_b','P-value','assumptions_met'])
         if check_assumptions==True:
             res_dict={'category_a':[],'category_b':[],'P-value':[],'assumptions_met':[]}
             for combo in combinations:
@@ -230,7 +230,7 @@ class Chi2:
                 res_dict['category_b'].append(combo[1])
                 res_dict['P-value'].append(p)
         if len(res_dict)<1:
-            return pd.DataFrame(columns=['category_a','category_b','P-value'])
+            return pd.DataFrame(columns=['category_a','category_b','P-value'] if check_assumptions==False else ['category_a','category_b','P-value','assumptions_met'])
         res = pd.DataFrame(res_dict)
         res = res[[i for i in ['category_a','category_b','P-value','assumptions_met'] if i in res.columns]]
         return res
@@ -319,7 +319,7 @@ class Chi2:
                 cols_to_exclude_from_targets=[cols_to_exclude_from_targets]
             columns = [col for col in columns if col not in cols_to_exclude_from_targets]
         if not columns:
-            return pd.DataFrame(columns=['category','P-value'])
+            return pd.DataFrame(columns=['category','P-value'] if check_assumptions==False else ['category','P-value','assumptions_met'])
         if check_assumptions==True:
             res_dict={'category':[],'P-value':[],'assumptions_met':[]}
             for col in columns:
