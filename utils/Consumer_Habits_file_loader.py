@@ -1,5 +1,5 @@
 
-from BinnerClass import Bin
+from .BinnerClass import Bin
 import pathlib
 import pandas as pd
 bin=Bin()

@@ -6,10 +6,10 @@ import inspect
 
 
 
-from ANOVA import ANOVA
-from Chi2 import Chi2
-from Coefficient import Coefficient
-from TTests import TTests
+from .ANOVA import ANOVA
+from .Chi2 import Chi2
+from .Coefficient import Coefficient
+from .TTests import TTests
 
 
 class CompareColumns(ANOVA, Chi2, Coefficient, TTests):

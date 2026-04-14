@@ -1,12 +1,12 @@
 
 
 
-from CompareColumns import CompareColumns
-from Chi2 import Chi2
-from Combinators import calculate_num_combinations
-from PlotClass import PlotClass
-from UnivariateNormal import UnivariateNormal
-from BinnerClass import Bin
+from .CompareColumns import CompareColumns
+from .Chi2 import Chi2
+from .Combinators import calculate_num_combinations
+from .PlotClass import PlotClass
+from .UnivariateNormal import UnivariateNormal
+from .BinnerClass import Bin
 
 
 
