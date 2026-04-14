@@ -14,8 +14,5 @@ GitIgnoredStuff/
 ML_prototyping.ipynb
 analyze_dataset_quickstart_II.ipynb
 analyze_dataset_quickstart_II copy.ipynb
-analyze_dataset_quickstart.ipynb
 data_analyzer_app.py
-binner_quickstart.ipynb
-compare_columns_quickstart.ipynb
-data_analyzer_app.py
+utils/shopping_behavior_updated.csv
