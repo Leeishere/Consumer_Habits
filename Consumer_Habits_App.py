@@ -66,8 +66,6 @@ if "col_by_col_min_bins" not in st.session_state:
     st.session_state.col_by_col_min_bins = None
 if "custom_min_bins" not in st.session_state:
     st.session_state.custom_min_bins = {}
-if "choose_columns" not in st.session_state:
-    st.session_state.choose_columns = False
 if "binning_processed" not in st.session_state:
     st.session_state.binning_processed = False
 
@@ -81,7 +79,7 @@ st.set_page_config(
     page_icon="🛠️",
     layout="wide")
 
-page = st.sidebar.radio("Navigate", ["Binning Tool", "Insights Gained w/ Binning Tool","Seasonal Forecasting Tool"])
+page = st.sidebar.radio("Navigate", ["Seasonal Forecast", "Binning Tool"])
 
 #plt.style.use('seaborn-v0_8-colorblind')
 pd.set_option('display.max_rows', 100)
@@ -107,18 +105,31 @@ if page == "Binning Tool":
 
     bin=Bin()
 
+    @st.cache_data(show_spinner=False)
+    def cached_min_bins(dataframe, numnum_metrics, catnum_metrics, numeric_columns_key=None):
+        """Cache expensive minimum-bin calculations for repeated resets."""
+        cached_bin = Bin()
+        numeric_columns = list(numeric_columns_key) if numeric_columns_key is not None else None
+        min_bin_dict = cached_bin.relational_binner(
+            dataframe,
+            numnum_meth_alpha_above=tuple(numnum_metrics),
+            numcat_meth_alpha_above=tuple(catnum_metrics),
+            original_value_count_threashold=5,
+            numeric_columns=numeric_columns,
+            categoric_columns=None,
+            numeric_target=None,
+            categoric_target=None,
+        )
+        return min_bin_dict, cached_bin.numeric_feature_col_thresholds
+
     def get_dict_for_min_bins(numeric_columns=None):
-        global bin
-        min_bin_dict=bin.relational_binner(st.session_state.data,
-                                           numnum_meth_alpha_above=st.session_state.numnum_metrics,
-                                           catnum_meth_alpha_above=st.session_state.catnum_metrics,
-                                           original_value_count_threashold=5,
-                                           numeric_columns=numeric_columns,
-                                           categoric_columns=None,
-                                           numeric_target=None,
-                                           categoric_target=None )
-        col_to_col_thresholds = bin.numeric_feature_col_thresholds
-        return min_bin_dict, col_to_col_thresholds
+        numeric_columns_key = tuple(numeric_columns) if numeric_columns is not None else None
+        return cached_min_bins(
+            st.session_state.data,
+            tuple(st.session_state.numnum_metrics),
+            tuple(st.session_state.catnum_metrics),
+            numeric_columns_key,
+        )
 
     coco=CompareColumns()
 
@@ -135,79 +146,42 @@ if page == "Binning Tool":
             binned_list.append(header)
         return data,binned_list
 
-    bin_selection_cell, col_to_col                          = st.columns([.5,.5],gap='large',vertical_alignment='top',border=True) 
-    choose_custom_binsize, bin_the_vars                     = st.columns([.5,.5],gap='large',vertical_alignment='top',border=True) 
-    examin_bins                                             =  st.columns([1],gap='large',vertical_alignment='top',border=True)
-    pre_binned_lineplot_cell, pre_bin_relationships         = st.columns([.45,.55],gap='large',vertical_alignment='top',border=True)
-    post_binned_countplot_cell,post_binned_relationships    = st.columns([.45,.55],gap='large',vertical_alignment='top',border=True)
-    binned_mu_plot                                          = st.columns([1],gap='large',vertical_alignment='top',border=True) 
-
-    # prefer stable, session-backed state over one-run flags
-
-    # a cell that resets the bin metric dicts and selects a column to update/review
-    with bin_selection_cell:
-        st.markdown('Click to Bin Variables or to Reset Bins')
-        reset = st.button("Reset Bins",width='stretch',key=2)
-        if reset==True:
-            # Reload original data without binned columns
-            st.session_state.data = load_data()
-            # Reset all binning-related session state
-            st.session_state.abs_min_bins = None
-            st.session_state.col_by_col_min_bins = None
-            st.session_state.custom_min_bins = {}
-            st.session_state.binned_columns = []
-            st.session_state.binned_exists_as = None
-            st.session_state.curr_original_unbinned = 'Review Rating'
-            st.session_state.choose_columns = False
-            st.session_state.binning_processed = False
-            st.session_state.unbinned_columns = None
-            # Now compute fresh bin minimums
-            st.session_state.abs_min_bins, st.session_state.col_by_col_min_bins = get_dict_for_min_bins()
-            st.session_state.custom_min_bins = st.session_state.abs_min_bins.copy()
-            # Store the original numeric column names for selection
-            st.session_state.unbinned_columns = list(st.session_state.custom_min_bins.keys())
-            st.session_state.choose_columns = True
-            st.rerun()
-        # select box for columns in the custom bin dict
-        col_in_review=None
-        if st.session_state.choose_columns == True and st.session_state.unbinned_columns is not None:
-            col_in_review = st.selectbox("Choose a Column to Bin.", st.session_state.unbinned_columns, index=None,key='examine_mins', 
-                                        help=None, on_change=None, args=None, kwargs=None, placeholder=None, 
-                                        disabled=False, label_visibility="visible", accept_new_options=False, width="stretch")
-    with col_to_col:   
-        if col_in_review!=None: 
-            st.subheader("Bin Sizes", divider='grey', anchor=False, text_alignment='center')
-            st.markdown("Selected Variable's Binsizes Related to Others")
-            threshold_df = pd.DataFrame(st.session_state.col_by_col_min_bins[col_in_review]).T.rename(columns={'min_within_threshold':'MinBins'})
-            threshold_df = threshold_df['MinBins'].astype(int).to_frame()
-            st.dataframe(data=threshold_df, width="stretch", height="auto",  use_container_width=None, hide_index=None, 
-                            column_order=None, column_config=None, key=None, on_select="ignore", selection_mode="multi-row", 
-                            row_height=None, placeholder=None)
-    with choose_custom_binsize:   
-        if col_in_review!=None:
-            st.subheader("Pick a Bin Size", divider='grey', anchor=False, text_alignment='center')
-            absMin=1
-            new_binsize = st.number_input("Insert a number", step=1,min_value=absMin, value=max(absMin,5),key='get_custom_binsize')
-            submit_new_binsize = st.button("Submit",width='stretch',key=222)
-            if submit_new_binsize==True:
-                st.session_state.custom_min_bins[col_in_review]=new_binsize
-                st.info("Select More Variables or Continue.")
-                submit_new_binsize=False
-    with bin_the_vars:
-        if st.session_state.abs_min_bins!=None:
-            move_on_with_selected = st.button("Process",width='stretch',key='move_on_with_selected')
-            st.markdown("Process Default & Custom Bins.")
-            if move_on_with_selected==True:                 
-                data=st.session_state.data.copy()
-                st.session_state.data,binned_columns=update_data_with_binned_columns(data,st.session_state.custom_min_bins)
-                del data
-                # Can ensure that there where columns to bin. That's all st.session_state.binned_columns does.
-                st.session_state.binned_columns+=binned_columns
+    def ensure_default_binning():
+        """Initialize default binning once so analysis widgets can render without setup controls."""
+        has_custom_bins = isinstance(st.session_state.custom_min_bins, dict) and len(st.session_state.custom_min_bins) > 0
+        needs_binning = (not has_custom_bins) or any(
+            f"{col} -> Binned" not in st.session_state.data.columns
+            for col in st.session_state.custom_min_bins.keys()
+        )
+        if needs_binning:
+            with st.spinner("Preparing default binning for analysis views..."):
+                st.session_state.abs_min_bins, st.session_state.col_by_col_min_bins = get_dict_for_min_bins()
+                st.session_state.custom_min_bins = st.session_state.abs_min_bins.copy()
+                data = st.session_state.data.copy()
+                st.session_state.data, st.session_state.binned_columns = update_data_with_binned_columns(
+                    data,
+                    st.session_state.custom_min_bins,
+                )
+                st.session_state.unbinned_columns = list(st.session_state.custom_min_bins.keys())
                 st.session_state.binning_processed = True
+                if st.session_state.unbinned_columns and (
+                    st.session_state.curr_original_unbinned not in st.session_state.unbinned_columns
+                ):
+                    st.session_state.curr_original_unbinned = st.session_state.unbinned_columns[0]
+
+        if st.session_state.unbinned_columns and st.session_state.curr_original_unbinned is not None:
+            st.session_state.binned_exists_as = f"{st.session_state.curr_original_unbinned} -> Binned"
+
+    ensure_default_binning()
+
+    examin_bins = st.columns([1], gap='large', vertical_alignment='top', border=True)
+    pre_binned_lineplot_cell, pre_bin_relationships = st.columns([.45, .55], gap='large', vertical_alignment='top', border=True)
+    post_binned_countplot_cell, post_binned_relationships = st.columns([.45, .55], gap='large', vertical_alignment='top', border=True)
+    binned_mu_plot = st.columns([1], gap='large', vertical_alignment='top', border=True)
     
     examin_bins=examin_bins[0]
     with examin_bins:
-        if st.session_state.binning_processed and (len(st.session_state.binned_columns)>0):
+        if st.session_state.unbinned_columns:
             st.subheader("Column Selection", divider='grey', anchor=False, text_alignment='center')
             st.markdown("Select the Binned Variable You Want to Examine.")
             try:
@@ -237,7 +211,7 @@ if page == "Binning Tool":
             st.markdown("Metrics Before Binning")
             pre_combined=coco.column_comparison(st.session_state.data,
                             numnum_meth_alpha_above=st.session_state.numnum_metrics,
-                            catnum_meth_alpha_above=st.session_state.catnum_metrics,
+                            numcat_meth_alpha_above=st.session_state.catnum_metrics,
                             catcat_meth_alpha_above=None,
                             numeric_columns=None,
                             categoric_columns=None,
@@ -269,7 +243,7 @@ if page == "Binning Tool":
             st.markdown("Statistically Significant Relationships After Binning")
             post_combined=coco.column_comparison(st.session_state.data,
                             numnum_meth_alpha_above=st.session_state.numnum_metrics,
-                            catnum_meth_alpha_above=st.session_state.catnum_metrics,
+                            numcat_meth_alpha_above=st.session_state.catnum_metrics,
                             catcat_meth_alpha_above=None,
                             numeric_columns=None,
                             categoric_columns=None,
@@ -310,7 +284,7 @@ if page == "Binning Tool":
             muest2=MuEstimator()
             muest2.get_floating_proportion_hbar(st.session_state.data,mu_column,0.95,partition_column,plot_title=None,streamlit=True, proportion_within_partition=True)
 
-elif page == "Seasonal Forecasting Tool":
+elif page == "Seasonal Forecast":
     #=================================================================================================================================================================
     # FORECASTING
     st.markdown('...',text_alignment='center')
@@ -364,73 +338,4 @@ elif page == "Seasonal Forecasting Tool":
             elif period_button is not None:
                 floating_cdf_plot(df=st.session_state.data,period=period_button)# with button as input
 
-elif page == "Insights Gained w/ Binning Tool":
-
-
-    Title_text = "Probability of Each Review Level Given a Categorical Variable."
-    st.markdown('...',text_alignment='center')
-    st.header(Title_text,text_alignment='center')
-    st.markdown("Variables That Reject the Null Hypothesis Under the Kruskal-Wallis Test for Differneces Across Groups.",text_alignment='center')
-    st.markdown('...',text_alignment='center')
-
-
-    seven_levels_           = st.columns([1],gap='large',vertical_alignment='top',border=True) 
-    ship_                   = st.columns([1],gap='large',vertical_alignment='top',border=True)
-    Purchase_Amount_        = st.columns([1],gap='large',vertical_alignment='top',border=True) 
-    color_                  =  st.columns([1],gap='large',vertical_alignment='top',border=True)
-    sixteen_levels_         = st.columns([1],gap='large',vertical_alignment='top',border=True)
-    size_                   = st.columns([1],gap='large',vertical_alignment='top',border=True) 
-
-    with seven_levels_[0]:
-        st.subheader("Review Ratings Binned Into 7 Levels", divider='grey', anchor=False, text_alignment='center')
-        seven_levels_path = pathlib.Path("utils/imgs_Consumer_Habits_App/RevRat7Levels.png")
-        st.image(seven_levels_path, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-    
-    with ship_[0]:
-        st.subheader("Shipping Type", divider='grey', anchor=False, text_alignment='center')       
-        Overview_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Ship.png")
-        st.image(Overview_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)   
-        P_L_given_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Ship.png")
-        st.markdown("Standard shipping spikes for high reviews, but most other Shipping Types spike for low reviews.")
-        st.image(P_L_given_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        Probas_Ship = pathlib.Path("utils/imgs_Consumer_Habits_App/Probas_Ship.png")
-        st.markdown("For Shipping Types, probabilities for low Reviews tend to be high in both directions together.")
-        st.image(Probas_Ship, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        
-    with Purchase_Amount_[0]:
-        st.subheader("Purchase Amount Binned and Ordinalized", divider='grey', anchor=False, text_alignment='center')
-        Overview_Purch_Ords = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Purch_Ords.png")
-        st.image(Overview_Purch_Ords, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        st.markdown("Purchase Amount shows spikes in levels 1-3 for all purchase categories, but only spikes in high reviews for amounts 1, 3, and 4.")
-        P_L_given_Purch_Ord = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Purch_Ord.png")
-        st.image(P_L_given_Purch_Ord, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        #st.markdown("Explore Low-Level Details.")    
-        #Paretos_Purch_Ord = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Purch_Ord.png")
-        #st.image(Paretos_Purch_Ord, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        
-    with color_[0]:
-        st.subheader("Color", divider='grey', anchor=False, text_alignment='center')
-        Overview_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Color.png")
-        st.image(Overview_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        P_L_given_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Color.png")
-        st.markdown("Many colors have high bias review levels.")
-        st.image(P_L_given_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        #Paretos_Color = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Color.png")
-        #st.image(Paretos_Color, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-    
-    with sixteen_levels_[0]:
-        st.subheader("Review Ratings Binned Into 16 Levels", divider='grey', anchor=False, text_alignment='center')
-        RevRat16Levels = pathlib.Path("utils/imgs_Consumer_Habits_App/RevRat16Levels.png")
-        st.image(RevRat16Levels, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-    
-    with size_[0]:
-        st.subheader("Size", divider='grey', anchor=False, text_alignment='center')
-        Overview_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/Overview_Size.png")
-        st.image(Overview_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        P_L_given_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/P_L_given_Size.png")
-        st.markdown("There is a slight tendency for L and M sizes to spike in low review levels and XL to spike in high. Spikes in S are not especially biased.")
-        st.image(P_L_given_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-        #Paretos_Size = pathlib.Path("utils/imgs_Consumer_Habits_App/Paretos_Size.png")
-        #st.image(Paretos_Size, caption=None, width="content", use_column_width=None, clamp=False, channels="RGB", output_format="auto",  use_container_width=None)
-    
     
