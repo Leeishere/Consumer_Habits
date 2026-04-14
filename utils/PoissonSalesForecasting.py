@@ -8,11 +8,8 @@ import numpy as np
 
 import warnings
 
-###   ProbabilisticModeling import
-try:
-    from utils.ProbabilisticModeling import ProbabilisticModeling
-except ModuleNotFoundError:
-    from ProbabilisticModeling import ProbabilisticModeling
+from .ProbabilisticModeling import ProbabilisticModeling
+
 
 ### streamlit import
 try:

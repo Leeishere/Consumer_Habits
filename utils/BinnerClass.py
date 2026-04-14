@@ -5,11 +5,7 @@ import warnings
 import itertools
 from itertools import combinations
 
-try:
-    from .CompareColumns import CompareColumns
-except:
-    from CompareColumns import CompareColumns
-
+from .CompareColumns import CompareColumns
 
 class Bin(CompareColumns):
     def __init__(self):

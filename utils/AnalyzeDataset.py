@@ -1,26 +1,13 @@
 
-"""
-    from utils.CompareColumns import CompareColumns
-    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from utils.Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
-    from utils.PlotClass import PlotClass
-    from utils.UnivariateNormal import UnivariateNormal
-    from utils.BinnerClass import Bin
-"""
-try:
-    from .CompareColumns import CompareColumns
-    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from .Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
-    from .PlotClass import PlotClass
-    from .UnivariateNormal import UnivariateNormal
-    from .BinnerClass import Bin
-except ImportError:
-    from CompareColumns import CompareColumns
-    from Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from Utils_HypTests_and_Coefficients.Combinators import calculate_num_combinations
-    from PlotClass import PlotClass
-    from UnivariateNormal import UnivariateNormal
-    from BinnerClass import Bin
+
+
+from .CompareColumns import CompareColumns
+from .Chi2 import Chi2
+from .Combinators import calculate_num_combinations
+from .PlotClass import PlotClass
+from .UnivariateNormal import UnivariateNormal
+from .BinnerClass import Bin
+
 
 
 

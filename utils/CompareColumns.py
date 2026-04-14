@@ -4,22 +4,13 @@ import pandas as pd
 import numpy as np
 import inspect
 
-"""
-    from utils.Utils_HypTests_and_Coefficients.ANOVA import ANOVA
-    from utils.Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from utils.Utils_HypTests_and_Coefficients.Coefficient import Coefficient
-    from utils.Utils_HypTests_and_Coefficients.TTests import TTests
-"""
-try:
-    from .Utils_HypTests_and_Coefficients.ANOVA import ANOVA
-    from .Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from .Utils_HypTests_and_Coefficients.Coefficient import Coefficient
-    from .Utils_HypTests_and_Coefficients.TTests import TTests
-except:
-    from Utils_HypTests_and_Coefficients.ANOVA import ANOVA
-    from Utils_HypTests_and_Coefficients.Chi2 import Chi2
-    from Utils_HypTests_and_Coefficients.Coefficient import Coefficient
-    from Utils_HypTests_and_Coefficients.TTests import TTests    
+
+
+from .ANOVA import ANOVA
+from .Chi2 import Chi2
+from .Coefficient import Coefficient
+from .TTests import TTests
+
 
 class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
 
