@@ -44,12 +44,12 @@ class Bin(CompareColumns):
     #examine  relationships prior to binning
     def pre_bin_relationships(self,
                             df,
-                            numnum_meth_alpha_above:tuple|None=('welch',0.05,False),
-                            numcat_meth_alpha_above:tuple|None=('kruskal',0.05,False),
-                            numeric_columns=None,
-                            categoric_columns=None,
-                            numeric_target:str|list|None=None,
-                            categoric_target:str|list|None=None ): 
+                            numnum_meth_alpha_above:tuple|list|None=('welch',0.05,False),
+                            numcat_meth_alpha_above:tuple|list|None=('kruskal',0.05,False),
+                            numeric_columns:list|tuple=None,
+                            categoric_columns:list|tuple=None,
+                            numeric_target:str|list|tuple|None=None,
+                            categoric_target:str|list|tuple|None=None ): 
         """
         prepares data for Bin().pair_column_headers()
         #it calls kruskal or anova for categoric to numeric; and spearman, pearson, kendal, welch, or student for numeric to numeric
@@ -71,11 +71,13 @@ class Bin(CompareColumns):
                         numeric_target=numeric_target,
                         categoric_target=categoric_target )
         #store the dataframes as class objects
-        self.numnum_original_stats, self.numcat_original_stats = num_num_df,num_cat
+        #self.numnum_original_stats, self.numcat_original_stats = num_num_df,num_cat
         
         return num_num_df,num_cat
     
-    def pair_column_headers(self,num_num_df:list|None=None,num_cat:list|None=None):
+    def pair_column_headers(self,
+                            num_num_df:pd.DataFrame|None=None,
+                            num_cat_df:pd.DataFrame|None=None):
         """
         processes output from Bin().pre_bin_relationships()
         prepares data for Bin().determine_min_number_of_bins()
@@ -84,9 +86,9 @@ class Bin(CompareColumns):
         
         num_num_pairs, cat_num_pairs = [], []
 
-        if num_cat:
-            cat_num_pairs=tuple((i.column_b,i.column_a) for i in num_cat[['column_a','column_b']].itertuples())
-        if num_num_df:
+        if num_cat_df is not None:
+            cat_num_pairs=tuple((i.column_b,i.column_a) for i in num_cat_df[['column_a','column_b']].itertuples())
+        if num_num_df is not None:
             num_num_pairs=tuple([(i.column_a,i.column_b) for i in num_num_df[['column_a','column_b']].itertuples()]+[(i.column_b,i.column_a)  for i in num_num_df[['column_a','column_b']].itertuples()])
         return num_num_pairs, cat_num_pairs
 
@@ -198,8 +200,8 @@ class Bin(CompareColumns):
 
     def determine_min_number_of_bins(self,
                                      dataframe:pd.DataFrame, 
-                                     num_num_pairs:list|tuple, 
-                                     cat_num_pairs:list|tuple, 
+                                     num_num_pairs:list|tuple|None=None, 
+                                     cat_num_pairs:list|tuple|None=None, 
                                      original_value_count_threashold:int=5, 
                                      numnum_meth_alpha_above:tuple|None=('welch',0.05,False),
                                      numcat_meth_alpha_above:tuple|None=('kruskal',0.05,False),
@@ -215,7 +217,9 @@ class Bin(CompareColumns):
                                            they should be un-nested univariate num and cat respectively
                                            they will be used as features
                                            by default, it is set to false and input from Bin().pair_column_headers() the original design input
-
+                                IT WILL ALSO ONLY TAKE A NUMERIC TARGET AS BINNABLE
+                                IT IS DESIGNED FOR USE WITH AnalyzeDataset.py to target variables one-by-one
+                                           
         call coeff or p-value functions based on 
         numnum_method of ('spearman','kendall','pearson','welch','student')
         and numcat_method of ('kruskal','anova')
@@ -240,6 +244,14 @@ class Bin(CompareColumns):
             categoric_target=[categoric_target]
         if isinstance(numeric_target,str):
             numeric_target=[numeric_target]
+        if num_num_pairs is None:
+            num_num_pairs = []
+        if cat_num_pairs is None:
+            cat_num_pairs = []
+        if numeric_target is None:
+            numeric_target = []
+        if categoric_target is None:
+            categoric_target = []
         if non_pair_numnum_numcat is None:
             non_pair_numnum_numcat = False
         if non_pair_numnum_numcat==True:
@@ -256,11 +268,13 @@ class Bin(CompareColumns):
             numnum_direction_of_relationship = 'lower' if numnum_meth_alpha_above[2] == False else 'greater'
 
         data=dataframe.copy()
-        #extract the columns that will be y-target
-        if (not categoric_target) and (not (not  numeric_target)) :
+        # extract the columns that will be y-target
+        # if cat, then all num are binned based on cat targ (plus num targs to all cats) 
+        if (not categoric_target) and (numeric_target) :
             cols_to_bin = numeric_target
+        # disigned for AnalyzeDataset.py, where targets are input individually
         elif non_pair_numnum_numcat==True:
-            cols_to_bin = list(numeric_target)
+            cols_to_bin = numeric_target
         else:
             cols_to_bin=list(set([i[1] for i in cat_num_pairs]+[i[1] for i in num_num_pairs]))  #use index 1 for both 
         #track minumum bins and max, no-relationship bins
@@ -280,24 +294,24 @@ class Bin(CompareColumns):
 
 
             # filter based on numeric_target and categoric_target
-            if (numeric_target is not None) or (categoric_target is not None):
+            if (numeric_target) or (categoric_target):
 
-                if (categoric_target is None):   # then numeric_target isn't None
+                if (not categoric_target):   # then numeric_target
                     if col not in numeric_target:   
                         continue
-                elif (numeric_target is None):   # then categoric_target isn't None
+                elif (not numeric_target):   # then categoric_target
                     # only need cat targets
                     x_cat_columns=[catcolumn for catcolumn in x_cat_columns if catcolumn in categoric_target]
-                    if ( (len(x_cat_columns)<1) or (numcat_meth_alpha_above is None) ):
+                    if ( not x_cat_columns) or (numcat_meth_alpha_above is None) :
                         continue
                     x_num_columns=()   # no need to test col against num targets                        
-                else:   # they are both not None
-                    # filter if col not target, else test all gainst col
+                else:   # they are both 
+                    # filter if col not target, else test all against col
                     if col not in numeric_target: 
                         x_cat_columns=[catcolumn for catcolumn in x_cat_columns if catcolumn in categoric_target]
-                        if ( (len(x_cat_columns)<1) or (numcat_meth_alpha_above is None) ):
+                        if  (not x_cat_columns) or (numcat_meth_alpha_above is None) :
                             continue
-                        x_num_columns=()   # no need to test col against num targets 
+                        x_num_columns=()   # no need to test col against num  
 
 
             # make calls to func min bins and metrics
@@ -373,8 +387,8 @@ class Bin(CompareColumns):
                         numnum_meth_alpha_above:tuple|None=('welch',0.05,False),
                         numcat_meth_alpha_above:tuple|None=('kruskal',0.05,False),
                         original_value_count_threashold:int=5,
-                        numeric_columns=None,
-                        categoric_columns=None,
+                        numeric_columns:list|tuple|None=None,
+                        categoric_columns:list|tuple|None=None,
                         numeric_target:str|list|None=None,
                         categoric_target:str|list|None=None ):
         """
@@ -405,7 +419,7 @@ class Bin(CompareColumns):
             raise ValueError("Variable numnum_meth_alpha_above for Numeric to Numeric at index 2 should be a boolean value.", ValueError)
         if (numcat_meth_alpha_above is not None) and (not isinstance(numcat_meth_alpha_above[2],bool)):
             raise ValueError("Variable numcat_meth_alpha_above for Categoric to Numeric at index 2 should be a boolean value.", ValueError)
-        num_num_df,num_cat=self.pre_bin_relationships(df,
+        num_num_df,num_cat_df=self.pre_bin_relationships(df,
                                                          numnum_meth_alpha_above=numnum_meth_alpha_above,
                                                          numcat_meth_alpha_above=numcat_meth_alpha_above,
                                                          numeric_columns=numeric_columns,
@@ -413,7 +427,7 @@ class Bin(CompareColumns):
                                                          numeric_target=numeric_target,
                                                          categoric_target=categoric_target )
         num_num_pairs, cat_num_pairs=self.pair_column_headers(num_num_df,
-                                                              num_cat)
+                                                              num_cat_df)
         self.numeric_target_column_minimums, self.numeric_feature_col_thresholds = self.determine_min_number_of_bins(df, 
                                                                                                                      num_num_pairs, 
                                                                                                                      cat_num_pairs, 

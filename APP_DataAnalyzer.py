@@ -1,73 +1,21 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
+import plotly.express as px
 
 from utils.AnalyzeDataset import AnalyzeDataset
 
+
+# SESSION STATE
 # ======================|
-# MODEL PARAMETERS      |
 # DATA MANIPULATION     | 
+# MODEL PARAMETERS      |
 # UI CONTROL            |
+# PLOT PARAMS           |
+# PLOT LISTS            |
 # CALL_BACKS            |
 # ======================|
 
-
-# MODEL PARAMETERS
-# =======================================================================================================================================
-# =======================================================================================================================================
-if 'n_wide' not in st.session_state:
-    st.session_state.n_wide = {'n_wide': [8, 30, 4]}
-
-if "cat_univar_params" not in st.session_state:
-    st.session_state.cat_univar_params = {"proportions": False, "n_wide": (8, 30, 4), "super_title": "Univariate Categorical Variables - Reject Good-Of-Fit for Uniform"}
-
-if "catcat_bivar_params" not in st.session_state:
-    st.session_state.catcat_bivar_params = {"n_wide": (8, 30, 4), "stacked_bars_when_max_bars_is_exceeded": True, "sorted": False, "super_title": "Categoric-To-Categoric Bivariates - Reject Null"}
-
-if "numnum_bivar_params" not in st.session_state:
-    st.session_state.numnum_bivar_params = {"plot_type": "joint", "linreg": False, "plot_type_kwargs": None, "linreg_kwargs": None, "super_title": "Numeric Bivariates With Significant Correlation(s)"}
-
-if "numcat_bivar_params" not in st.session_state:
-    st.session_state.numcat_bivar_params = {"plot_type": "boxen", "n_wide": (8, 30, 4), "super_title": "Numeric-to-Categoric Bivariates  - Reject Null"}
-
-if "super_subcat_pairs_params" not in st.session_state:
-    st.session_state.super_subcat_pairs_params = {"row_height": 3, "cols_per_row": 2, "y_tick_fontsize": 12, "super_title": "Supercategory-Subcategory - One Categoric Variable Partitions Another"}
-
-if "num_univar_params" not in st.session_state:
-    st.session_state.num_univar_params = {"kde": None, "proportions": False, "n_wide": (8, 30, 4), "super_title": "Univariate Numerical Variables - Reject Normal Distribution", "force_significant_bin_edges": None, "minimize_significant_bins": None, "include_multivariate": True}
-
-if "kruskal_assumption_check_params" not in st.session_state:
-    st.session_state.kruskal_assumption_check_params = {"levene_alpha": 0.01, "ks_alpha": 0.01, "return_pseudo": True, "pseudo_test_max_global_ties_ratio": 0.7, "full_pseudo": False, "dropna": True, "n_jobs": 4, "guesstimate": {"rej_max_pct_in_group": 0.2, "max_num_outlier_all_reject": 3, "max_pct_reject_total": 0.2}}
-
-if "anova_assumption_check_params" not in st.session_state:
-    st.session_state.anova_assumption_check_params = {"normality_alpha": 0.01, "homogeneity_alpha": 0.01, "min_n": 5, "iqr_multiplier": 2, "dropna": True}
-
-if "chi2_assumption_check_params" not in st.session_state:
-    st.session_state.chi2_assumption_check_params = {"dropna": True}
-
-if "supercat_subcat_params" not in st.session_state: 
-    st.session_state.supercat_subcat_params = {"max_evidence": 0.2, "isolate_super_subs": False}
-
-if "multivariate_params" not in st.session_state:
-    st.session_state.multivariate_params = {"max_n_combination_size": 2, "max_n_combinations": 20_000, "min_combo_size": 2}
-
-if "multivariate_concatenation_delimiter" not in st.session_state:
-    st.session_state.multivariate_concatenation_delimiter = "_|&|_"
-
-if "numnum_meth_alpha_above_instructions" not in st.session_state:
-    st.session_state.numnum_meth_alpha_above_instructions = [["pearson", 0.6, None], ["spearman", 0.6, None], ["kendall", 0.6, None]]
-
-if "numcat_meth_alpha_above_instructions" not in st.session_state:
-    st.session_state.numcat_meth_alpha_above_instructions = [["kruskal", 0.05, None], ["anova", 0.05, None]]
-
-if "catcat_meth_alpha_above_instructions" not in st.session_state:
-    st.session_state.catcat_meth_alpha_above_instructions = [["chi2", 0.05, None]]
-
-if "good_of_fit_uniform_test_instrucions" not in st.session_state:
-    st.session_state.good_of_fit_uniform_test_instrucions = [0.05, None]
-
-if "normal_test_instructions" not in st.session_state:
-    st.session_state.normal_test_instructions = [0.05, None]
 
 # DATA MANIPULATION
 # =======================================================================================================================================
@@ -122,6 +70,44 @@ if 'propose_drop_pct_nan_int' not in st.session_state:
 if 'max_frac_droppable_nan_cat' not in st.session_state:
     st.session_state.max_frac_droppable_nan_cat = None
 
+# MODEL PARAMETERS
+# =======================================================================================================================================
+# =======================================================================================================================================
+
+
+if "kruskal_assumption_check_params" not in st.session_state:
+    st.session_state.kruskal_assumption_check_params = {"levene_alpha": 0.01, "ks_alpha": 0.01, "return_pseudo": True, "pseudo_test_max_global_ties_ratio": 0.7, "full_pseudo": False, "dropna": True, "n_jobs": 4, "guesstimate": {"rej_max_pct_in_group": 0.2, "max_num_outlier_all_reject": 3, "max_pct_reject_total": 0.2}}
+
+if "anova_assumption_check_params" not in st.session_state:
+    st.session_state.anova_assumption_check_params = {"normality_alpha": 0.01, "homogeneity_alpha": 0.01, "min_n": 5, "iqr_multiplier": 2, "dropna": True}
+
+if "chi2_assumption_check_params" not in st.session_state:
+    st.session_state.chi2_assumption_check_params = {"dropna": True}
+
+if "supercat_subcat_params" not in st.session_state: 
+    st.session_state.supercat_subcat_params = {"max_evidence": 0.2, "isolate_super_subs": False}
+
+if "multivariate_params" not in st.session_state:
+    st.session_state.multivariate_params = {"max_n_combination_size": 2, "max_n_combinations": 20_000, "min_combo_size": 2}
+
+if "multivariate_concatenation_delimiter" not in st.session_state:
+    st.session_state.multivariate_concatenation_delimiter = "_|&|_"
+
+if "numnum_meth_alpha_above_instructions" not in st.session_state:
+    st.session_state.numnum_meth_alpha_above_instructions = [["pearson", 0.6, None], ["spearman", 0.6, None], ["kendall", 0.6, None]]
+
+if "numcat_meth_alpha_above_instructions" not in st.session_state:
+    st.session_state.numcat_meth_alpha_above_instructions = [["kruskal", 0.05, None], ["anova", 0.05, None]]
+
+if "catcat_meth_alpha_above_instructions" not in st.session_state:
+    st.session_state.catcat_meth_alpha_above_instructions = [["chi2", 0.05, None]]
+
+if "good_of_fit_uniform_test_instructions" not in st.session_state:
+    st.session_state.good_of_fit_uniform_test_instructions = [0.05, None]
+
+if "normal_test_instructions" not in st.session_state:
+    st.session_state.normal_test_instructions = [0.05, None]
+
 # UI CONTROL
 # =======================================================================================================================================
 # =======================================================================================================================================
@@ -137,27 +123,122 @@ if 'early_stop' not in st.session_state:
 if 'step' not in st.session_state:
     st.session_state.step = 1
 
-# PLOTTING OPTION LISTS
-# =====================================================================================================================================
-# =====================================================================================================================================
-if 'valid_group_param_indexes' not in st.session_state:
-    st.session_state.valid_group_param_indexes = None
+# PLOT PARAMS
+# =======================================================================================================================================
+# =======================================================================================================================================
 
-if 'univar_bivar_target_params_and_pairs' not in st.session_state:
-    st.session_state.univar_bivar_target_params_and_pairs = None
+if 'n_wide' not in st.session_state:
+    st.session_state.n_wide = {'n_wide': [8, 30, 4]}  # axises per row, total bars per row, row height in inches
+
+if "cat_univar_params" not in st.session_state:
+    st.session_state.cat_univar_params = {"histfunc":'count'}
+
+if "catcat_bivar_params" not in st.session_state:
+    st.session_state.catcat_bivar_params = {}
+
+if "numnum_bivar_params" not in st.session_state:
+    st.session_state.numnum_bivar_params = {'marginal_x':"histogram", 'marginal_y':"histogram", 'trendline':"ols"}  
+    
+if "numcat_bivar_params" not in st.session_state:
+    st.session_state.numcat_bivar_params = {}
+
+if "super_subcat_pairs_params" not in st.session_state:
+    st.session_state.super_subcat_pairs_params = {"row_height": 3, "cols_per_row": 2, "y_tick_fontsize": 12,  
+                                                  "super_title": "Supercategory-Subcategory - One Categoric Variable Partitions Another"}
+
+if "num_univar_params" not in st.session_state:
+    st.session_state.num_univar_params = {}
+
+if "catunivarparams" not in st.session_state:
+    st.session_state.catunivarparams = {"proportions": False, "n_wide": (8, 30, 4), "super_title": "Univariate Categorical Variables - Reject Good-Of-Fit for Uniform"}
+
+if "catcatbivarparams" not in st.session_state:
+    st.session_state.catcatbivarparams = {"n_wide": (8, 30, 4), "stacked_bars_when_max_bars_is_exceeded": True, "sorted": False, "super_title": "Categoric-To-Categoric Bivariates - Reject Null"}
+
+if "numnumbivarparams" not in st.session_state:
+    st.session_state.numnumbivarparams = {"plot_type": "joint", "linreg": False, "plot_type_kwargs": None, "linreg_kwargs": None, "super_title": "Numeric Bivariates With Significant Correlation(s)"}
+
+if "numcatbivarparams" not in st.session_state:
+    st.session_state.numcatbivarparams = {"plot_type": "boxen", "n_wide": (8, 30, 4), "super_title": "Numeric-to-Categoric Bivariates  - Reject Null"}
+
+if "supersubcatpairsparams" not in st.session_state:
+    st.session_state.supersubcatpairsparams = {"row_height": 3, "cols_per_row": 2, "y_tick_fontsize": 12, "super_title": "Supercategory-Subcategory - One Categoric Variable Partitions Another"}
+
+if "numunivarparams" not in st.session_state:
+    st.session_state.numunivarparams = {"kde": None, "proportions": False, "n_wide": (8, 30, 4), "super_title": "Univariate Numerical Variables - Reject Normal Distribution", "force_significant_bin_edges": None, "minimize_significant_bins": None, "include_multivariate": True}
+
+
+# PLOT LISTS
+# =====================================================================================================================================
+# =====================================================================================================================================
+if 'valid_group_plottable_indexes' not in st.session_state:
+    st.session_state.valid_group_plottable_indexes = None
+
+if 'univar_bivar_list_of_iterable_plottable_group_header_pairs' not in st.session_state:
+    st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = None
 
 if 'chunk_size' not in st.session_state:
-    st.session_state.chunk_size = 10
+    st.session_state.chunk_size = 5
+
+if 'group_plot_options' not in st.session_state:
+    st.session_state.group_plot_options = None
 
 if 'group_plotable' not in st.session_state:
-    st.session_state.group_plotable = []
+    st.session_state.mutated_group_plotable_titles = None
 
+if 'group_plot_list_keys' not in st.session_state:
+    st.session_state.group_plot_list_keys = [
+        'num_univar', 'num_univar', 
+        'cat_univar', 'cat_univar',
+        'numnum_bivar', 'numnum_bivar',
+        'numcat_bivar', 'numcat_bivar',
+        'catcat_bivar', 'catcat_bivar',
+        'super_subcat_pairs',
+        'catcat_bivar', 'numnum_bivar', 'numcat_bivar', 
+        'num_univar', 'cat_univar'
+        ]
+    
+if 'group_plot_param_keys' not in st.session_state:
+    st.session_state.group_plot_param_keys = [
+                                            'num_univar_params' , 'num_univar_params' ,
+                                            'cat_univar_params' , 'cat_univar_params' ,
+                                            'numnum_bivar_params' , 'numnum_bivar_params' ,
+                                            'numcat_bivar_params' , 'numcat_bivar_params' ,
+                                            'catcat_bivar_params' , 'catcat_bivar_params' ,
+                                            'super_subcat_pairs_params' ,
+                                            'catcat_bivar_params' , 'numnum_bivar_params' , 'numcat_bivar_params' , 
+                                            'num_univar_params' , 'cat_univar_params'
+                                            ]
+    
+if ('plot_function' not in st.session_state):
+    st.session_state.plot_function = None
+    
+if 'curr_group_plot_selection' not in st.session_state:
+    st.session_state.curr_group_plot_selection = None
+
+if 'master_group_plot_index' not in st.session_state:
+    st.session_state.master_group_plot_index = None
+    
 # CALL_BACKS
 # =======================================================================================================================================
 # =======================================================================================================================================  
 def set_page():
     st.session_state.page = st.session_state.navigation_control
 
+# functions
+# =======================================================================================================================================
+# =======================================================================================================================================  
+def return_catcat_plottype(x,y):
+    _df = st.session_state.indexed_col_meta_df
+    xniq = int(_df[_df.index == x]['n_unique'].iloc[0])
+    yniq = int(_df[_df.index == y]['n_unique'].iloc[0])
+    curr_x_curr_color = (x,y) if xniq>yniq else (y,x)
+    if (xniq * yniq) <= st.session_state.n_wide['n_wide'][1]:
+        params = {'x':curr_x_curr_color[0], 'color':curr_x_curr_color[1], "histfunc":"count"}
+        return px.histogram, params
+    else:
+        params = {'x':curr_x_curr_color[0], 'color':curr_x_curr_color[1], 'barmode':"stack"}
+        return px.bar,  params
 
 
 
@@ -209,13 +290,13 @@ if st.session_state.page == "Data Upload & Processing":
             st.session_state.catcat_meth_alpha_above_instructions[0][1] = new_val
         
         # P-value threshold for good-of-fit uniform
-        current_p_gof = st.session_state.good_of_fit_uniform_test_instrucions[0]
+        current_p_gof = st.session_state.good_of_fit_uniform_test_instructions[0]
         p_gof_options = [current_p_gof, 0.025, 0.01]
         p_gof_labels = [f"{current_p_gof}"] + [str(i) for i in p_gof_options[1:]]
         selected_p_gof = st.selectbox("P-value Threshold (Good-of-Fit Uniform)", p_gof_labels, index=0)
         if selected_p_gof != p_gof_labels[0]:
             new_val = p_gof_options[p_gof_labels.index(selected_p_gof)]
-            st.session_state.good_of_fit_uniform_test_instrucions[0] = new_val
+            st.session_state.good_of_fit_uniform_test_instructions[0] = new_val
         
         # P-value threshold for normal test
         current_p_norm = st.session_state.normal_test_instructions[0]
@@ -291,7 +372,7 @@ if st.session_state.page == "Data Upload & Processing":
                     n_sample_rows = 3
                     st.markdown(f'{n_sample_rows} sample rows of values')
                     st.dataframe(st.session_state.data.sample(min(n_sample_rows, len(st.session_state.data))))
-                if st.session_state == 7:
+                if st.session_state.step == 7:
                     st.markdown(f'Hypothesis and Correlation Results')
                     st.dataframe(st.session_state.result_df)
 
@@ -301,9 +382,12 @@ if st.session_state.page == "Data Upload & Processing":
                 if st.session_state.uploaded_file_name != uploaded_file.name:
 
                     # reset dynamic ploting variables
-                    st.session_state.valid_group_param_indexes = None
-                    st.session_state.univar_bivar_target_params_and_pairs = None
-                    st.session_state.group_plotable = []
+                    st.session_state.valid_group_plottable_indexes = None
+                    st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = None
+                    st.session_state.mutated_group_plotable_titles = None
+                    st.session_state.group_plot_options = None
+                    st.session_state.plot_function = None
+                    
 
                     st.session_state.step = 1
 
@@ -761,7 +845,7 @@ if st.session_state.page == "Data Upload & Processing":
                                                     numnum_meth_alpha_above_instructions=st.session_state.numnum_meth_alpha_above_instructions,
                                                     numcat_meth_alpha_above_instructions=st.session_state.numcat_meth_alpha_above_instructions,
                                                     catcat_meth_alpha_above_instructions=st.session_state.catcat_meth_alpha_above_instructions,
-                                                    good_of_fit_uniform_test_instrucions=st.session_state.good_of_fit_uniform_test_instrucions,
+                                                    good_of_fit_uniform_test_instructions=st.session_state.good_of_fit_uniform_test_instructions,
                                                     normal_test_instructions=st.session_state.normal_test_instructions
                                                     )
             st.session_state.AD.fit_full_dataset_analysis(st.session_state.data,  
@@ -774,11 +858,21 @@ if st.session_state.page == "Data Upload & Processing":
                                 fit_multivariates=False,       # instruct to test multivariate significance
                                 fit_supercat_subcats=True)    # test for super categories with subcategories that partition other variables
             
-  
+            if ('plot_function' not in st.session_state) or (not st.session_state.plot_function):
+                                st.session_state.plot_function = [
+                                    px.histogram, px.histogram,        # 0,1  num_univar
+                                    px.histogram, px.histogram,        # 2,3  cat_univar
+                                    px.scatter, px.scatter,            # 4,5  numnum_bivar
+                                    px.box, px.box,                    # 6,7  numcat_bivar
+                                    return_catcat_plottype, return_catcat_plottype,  # 8,9  catcat_bivar
+                                    st.session_state.AD.produce_all_plots,          # 10   super_subcat_pairs
+                                    return_catcat_plottype, px.scatter, px.box,     # 11,12,13 assumptions not met
+                                    px.histogram, px.histogram                      # 14,15 assumptions not met
+                                ]
 
 
             result_df = st.session_state.AD.column_relationships_df(st.session_state.data.columns).reset_index(drop=False)
-            st.session_state.result_df = result_df[['Target', 'Distribution', 'FeatureColum(s)', 'Test(s)']].rename(columns={'Test(s)':'Test:Assumptions_Met'}).set_index(['Target','Distribution'])
+            st.session_state.result_df = result_df[['Target', 'Distribution', 'FeatureColumn(s)', 'Test(s)']].rename(columns={'Test(s)':'Test:Assumptions_Met'}).set_index(['Target','Distribution'])
 
             st.session_state.step = 7
             st.rerun()
@@ -802,71 +896,27 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                                          key = 'navigation_control',
                                          on_change = set_page)
 
-        st.header("Plot Layout Controls")
+        st.header("Plot Controls")
         
         # Number of plot axes per row
-        n_axes_options = [5, 6, 7]
-        selected_n_axes = st.selectbox("Number of plot axes per row", n_axes_options, index=n_axes_options.index(st.session_state.n_wide['n_wide'][0]) if st.session_state.n_wide['n_wide'][0] in n_axes_options else 0)
+        chunk_size_options = [1,5,10]
+        selected_chunk_size = st.selectbox("Number of plots per batch", chunk_size_options, index=chunk_size_options.index(st.session_state.chunk_size) if st.session_state.chunk_size in chunk_size_options else 0)
         
-        # Ideal max bars per row
-        max_bars_options = [20, 30, 40, 50]
-        selected_max_bars = st.selectbox("Ideal max bars per row", max_bars_options, index=max_bars_options.index(st.session_state.n_wide['n_wide'][1]) if st.session_state.n_wide['n_wide'][1] in max_bars_options else 1)
         
-        # Row height
-        height_options = [3, 4, 5, 6]
-        selected_height = st.selectbox("Row height (inches)", height_options, index=height_options.index(st.session_state.n_wide['n_wide'][2]) if st.session_state.n_wide['n_wide'][2] in height_options else 2)
-        
-        # Update n_wide
-        st.session_state.n_wide['n_wide'] = [selected_n_axes, selected_max_bars, selected_height]   
-
-        # Update all relevant params
-        st.session_state.num_univar_params.update(st.session_state.n_wide)
-        st.session_state.cat_univar_params.update(st.session_state.n_wide)
-        st.session_state.catcat_bivar_params.update(st.session_state.n_wide)
-        # N/A st.session_state.numnum_bivar_params.update(st.session_state.n_wide)
-        st.session_state.numcat_bivar_params.update(st.session_state.n_wide)
-        
-        st.header("Numerical Univariate Parameters")
-        
-        # force_significant_bin_edges
-        #force_options = ["None", "True"]
-        #current_force = "True" if st.session_state.num_univar_params.get('force_significant_bin_edges') else "None"
-        #selected_force = st.selectbox("Force significant bin edges", force_options, index=force_options.index(current_force))
-        st.session_state.num_univar_params['force_significant_bin_edges'] = True #if selected_force == "True" else None
-        
-        # minimize_significant_bins
-        minimize_options = ["False", "True"]
-        current_minimize = "True" if st.session_state.num_univar_params.get('minimize_significant_bins') else "False"
-        selected_minimize = st.selectbox("Minimize significant bins", minimize_options, index=minimize_options.index(current_minimize))
-        st.session_state.num_univar_params['minimize_significant_bins'] = True if selected_minimize == "True" else None
-        
-        # include_multivariate
-        # multivariate_options = ["True", "False"]
-        # current_multivariate = "True" if st.session_state.num_univar_params.get('include_multivariate', True) else "False"
-        # selected_multivariate = st.radio("Include multivariate in bin computations", multivariate_options, index=multivariate_options.index(current_multivariate))
-        # st.session_state.num_univar_params['include_multivariate'] = selected_multivariate == "True"
-
-        st.header("Numeric-Categoric Bivariate Parameters")
-        
-        # plot_type for numcat_bivar_params
-        plot_type_options = ["box", "boxen", "violin"]
-        current_plot_type = st.session_state.numcat_bivar_params.get('plot_type', 'boxen')
-        selected_plot_type = st.selectbox("Plot type for numeric-categoric plots", plot_type_options, index=plot_type_options.index(current_plot_type) if current_plot_type in plot_type_options else 1)
-        st.session_state.numcat_bivar_params['plot_type'] = selected_plot_type
         
         st.header("Numeric-Numeric Bivariate Parameters")
         
         # plot_type for numnum_bivar_params
-        numnum_plot_type_options = ["joint", "scatter"]
-        current_numnum_plot_type = st.session_state.numnum_bivar_params.get('plot_type', 'joint')
-        selected_numnum_plot_type = st.selectbox("Plot type for numeric-numeric plots", numnum_plot_type_options, index=numnum_plot_type_options.index(current_numnum_plot_type) if current_numnum_plot_type in numnum_plot_type_options else 0)
-        st.session_state.numnum_bivar_params['plot_type'] = selected_numnum_plot_type
+        #numnum_plot_type_options = ["joint", "scatter"]
+        #current_numnum_plot_type = st.session_state.numnum_bivar_params.get('plot_type', 'joint')
+        #selected_numnum_plot_type = st.selectbox("Plot type for numeric-numeric plots", numnum_plot_type_options, index=numnum_plot_type_options.index(current_numnum_plot_type) if current_numnum_plot_type in numnum_plot_type_options else 0)
+        #st.session_state.numnum_bivar_params['plot_type'] = selected_numnum_plot_type
         
         # linreg for numnum_bivar_params
-        linreg_options = ["False", "True"]
-        current_linreg = "True" if st.session_state.numnum_bivar_params.get('linreg', False) else "False"
-        selected_linreg = st.selectbox("Include linear regression line", linreg_options, index=linreg_options.index(current_linreg))
-        st.session_state.numnum_bivar_params['linreg'] = selected_linreg == "True"
+        #linreg_options = ["False", "True"]
+        #current_linreg = "True" if st.session_state.numnum_bivar_params.get('linreg', False) else "False"
+        #selected_linreg = st.selectbox("Include linear regression line", linreg_options, index=linreg_options.index(current_linreg))
+        #st.session_state.numnum_bivar_params['linreg'] = selected_linreg 
         
         st.header("Supercategory-Subcategory Parameters")
         
@@ -896,7 +946,8 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         # ---------------------------------------------------------------------------------------------------
         if st.session_state.page == "Group Visualizations":
 
-            plot_overview_type_index_position = [
+            # un mutated plot options
+            group_plot_unmutated_title_list = [
                         'Numerical Non-Normal', 'Numerical Normal',
                         'Categorical Non-Uniform', 'Categorical Uniform',
                         'Numeric-Numeric With Correlation','Numeric-Numeric Without Correlation',
@@ -909,140 +960,232 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                         'Assumptions Not Met - Numerical',
                         'Assumptions Not Met - Categorical'
                         ]
-
-
-            var_target_params_and_pairs = [
-                        {'num_univar':list(st.session_state.AD.reject_null_normal),
-                            'num_univar_params':{**st.session_state.num_univar_params,'super_title':'Numerical Non-Normal'}} ,
-                        {'num_univar':list(st.session_state.AD.fail_to_reject_null_normal),
-                            'num_univar_params':{**st.session_state.num_univar_params,'super_title':'Numerical Normal'}}  , 
-                        {'cat_univar':list(st.session_state.AD.reject_null_good_of_fit),
-                            'cat_univar_params':{**st.session_state.cat_univar_params,'super_title':'Categorical Non-Uniform'}} ,  
-                        {'cat_univar':list(st.session_state.AD.fail_to_reject_null_good_of_fit),
-                            'cat_univar_params':{**st.session_state.cat_univar_params,'super_title':'Categorical Uniform'}} , 
-                        {'numnum_bivar':st.session_state.AD.above_threshold_corr_numnum,
-                            'numnum_bivar_params':{**st.session_state.numnum_bivar_params, 'super_title':'Numeric-Numeric With Correlation'}}  , 
-                        {'numnum_bivar':st.session_state.AD.below_threshold_corr_numnum,
-                            'numnum_bivar_params':{**st.session_state.numnum_bivar_params,'super_title':'Numeric-Numeric Without Correlation'}} , 
-                        {'numcat_bivar':st.session_state.AD.reject_null_numcat,
-                            'numcat_bivar_params':{**st.session_state.numcat_bivar_params, 'super_title':'Numeric-Categoric Reject Null'}}  , 
-                        {'numcat_bivar': st.session_state.AD.fail_to_reject_null_numcat,
-                            'numcat_bivar_params':{**st.session_state.numcat_bivar_params,'super_title':'Numeric-Categoric Fail to Reject Null'}}  , 
-                        {'catcat_bivar':st.session_state.AD.reject_null_catcat,
-                            'catcat_bivar_params':{**st.session_state.catcat_bivar_params,'super_title':'Categoric-Categoric Reject Null'}}  , 
-                        {'catcat_bivar':st.session_state.AD.fail_to_reject_null_catcat,
-                            'catcat_bivar_params':{**st.session_state.catcat_bivar_params,'super_title':'Categoric-Categoric Fail to Reject Null'}}  , 
-                        {'super_subcat_pairs':st.session_state.AD.supercategory_subcategory_pairs,
-                        'super_subcat_pairs_params':{**st.session_state.super_subcat_pairs_params,'super_title':'Categoric Partitioned by Another Categoric'}} ,                                             
-                        {'catcat_bivar':st.session_state.AD.assumptions_not_met['catcat'],
-                        'catcat_bivar_params':{**st.session_state.catcat_bivar_params,'super_title':'Assumptions Not Met -- Categoric-Categoric'}},
-                        {'numnum_bivar':st.session_state.AD.assumptions_not_met['numnum'],
-                        'numnum_bivar_params':{**st.session_state.numnum_bivar_params,'super_title':'Assumptions Not Met -- Numeric-Numeric'}},
-                        {'numcat_bivar': st.session_state.AD.assumptions_not_met['numcat'],
-                        'numcat_bivar_params':{**st.session_state.numcat_bivar_params,'super_title':'Assumptions Not Met -- Numeric-Categoric'}},
-                        {'num_univar':list(st.session_state.AD.assumptions_not_met['num']),
-                        'num_univar_params':{**st.session_state.num_univar_params,'super_title':'Assumptions Not Met -- Numerical'}},
-                        {'cat_univar':list(st.session_state.AD.assumptions_not_met['cat']),
-                        'cat_univar_params':{**st.session_state.cat_univar_params,'super_title':'Assumptions Not Met -- Categorical'}}
+            # unprocessed pairs list returned by model (coresponds to un mutated titles)
+            var_list_of_iterable_plottable_group_header_pairs = [
+                        list(st.session_state.AD.reject_null_normal),
+                        list(st.session_state.AD.fail_to_reject_null_normal),
+                        list(st.session_state.AD.reject_null_good_of_fit),
+                        list(st.session_state.AD.fail_to_reject_null_good_of_fit),
+                        st.session_state.AD.above_threshold_corr_numnum,
+                        st.session_state.AD.below_threshold_corr_numnum,
+                        st.session_state.AD.reject_null_numcat,
+                        st.session_state.AD.fail_to_reject_null_numcat,
+                        st.session_state.AD.reject_null_catcat,
+                        st.session_state.AD.fail_to_reject_null_catcat,
+                        st.session_state.AD.supercategory_subcategory_pairs,
+                        st.session_state.AD.assumptions_not_met['catcat'],
+                        st.session_state.AD.assumptions_not_met['numnum'],
+                        st.session_state.AD.assumptions_not_met['numcat'],
+                        list(st.session_state.AD.assumptions_not_met['num']),
+                        list(st.session_state.AD.assumptions_not_met['cat']),
                         ]
-            
-            plot_list_keys = [
-                              'num_univar', 'num_univar', 
-                              'cat_univar', 'cat_univar',
-                              'numnum_bivar', 'numnum_bivar',
-                              'numcat_bivar', 'numcat_bivar',
-                              'catcat_bivar', 'catcat_bivar',
-                              'super_subcat_pairs',
-                              'catcat_bivar', 'numnum_bivar', 'numcat_bivar', 
-                              'num_univar', 'cat_univar'
-                              ]
+        
 
-            if (st.session_state.valid_group_param_indexes is None):  # COULD ADD or (st.session_state.univar_bivar_target_params_and_pairs is None): but it is needless
+            if ( 
+                (st.session_state.valid_group_plottable_indexes is None) 
+                or
+                (st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs is None)
+                or 
+                (st.session_state.mutated_group_plotable_titles is None)
+                or
+                (st.session_state.group_plot_options is None)
+                ):
+
+                st.session_state.mutated_group_plotable_titles = group_plot_unmutated_title_list.copy()
+
                 valid_indexes = [] 
-                new_params_list = []
-                for i in range(len( plot_overview_type_index_position)):
+                plottable_pairs_list = []
+                group_plot_options = []
+                # st.session_state.group_plot_list_keys 
+                # st.session_state.group_plot_param_keys
+                for i in range(len( st.session_state.mutated_group_plotable_titles)):
                     # fill a list with dict params to iterate over
-                    curr_param = []
-                    if var_target_params_and_pairs[i][plot_list_keys[i]]:
+                    curr_plottables = []
+                    if var_list_of_iterable_plottable_group_header_pairs[i]:
+                        num_curr_pairs = len(var_list_of_iterable_plottable_group_header_pairs[i])
                         valid_indexes.append(i)
-                        if len(var_target_params_and_pairs[i][plot_list_keys[i]])>st.session_state.chunk_size:
-                            second_key = None
-                            # seek and capture the second key, it is the non match to the first
-                            for key in var_target_params_and_pairs[i].keys():
-                                if key != plot_list_keys[i]:
-                                    second_key=key
-                                    break
+                        if num_curr_pairs > st.session_state.chunk_size:
                             start = 0
                             stop  = st.session_state.chunk_size
                             # create an iterable list at the index position
-                            while start < len(var_target_params_and_pairs[i][plot_list_keys[i]]):
-                                chunk = var_target_params_and_pairs[i][plot_list_keys[i]][start:stop]
+                            while start < num_curr_pairs:
+                                chunk = var_list_of_iterable_plottable_group_header_pairs[i][start:stop]
                                 start = stop
                                 stop = stop + st.session_state.chunk_size
-                                appendable = {plot_list_keys[i]:chunk,second_key:var_target_params_and_pairs[i][second_key]}
-                                curr_param.append(appendable)
-                            #suffix =  f": Fewer Than {len(curr_param)*st.session_state.chunk_size} Plots"
-                            #plot_overview_type_index_position[i]+=suffix
-                            new_params_list.append(curr_param)
+                                appendable = chunk
+                                curr_plottables.append(appendable)
+                            suffix = f": {num_curr_pairs} Plots"
+                            st.session_state.mutated_group_plotable_titles[i] += suffix
+                            group_plot_options.append({
+                                'original_index': i,
+                                'display_title': st.session_state.mutated_group_plotable_titles[i],
+                                'partitions': curr_plottables,
+                            })
+                            plottable_pairs_list.append(curr_plottables)
                         else:
                             # else enclose/append it in a list: [ original_list ], so it can be iterated 1 time
-                            curr_param.append(var_target_params_and_pairs[i])
-                            #suffix =  f": Fewer Than {len(curr_param)*st.session_state.chunk_size} Plots"
-                            #plot_overview_type_index_position[i]+=suffix
-                            new_params_list.append(curr_param)
+                            curr_plottables.append(var_list_of_iterable_plottable_group_header_pairs[i])
+                            suffix = f": {num_curr_pairs} Plots"
+                            st.session_state.mutated_group_plotable_titles[i] += suffix
+                            group_plot_options.append({
+                                'original_index': i,
+                                'display_title': st.session_state.mutated_group_plotable_titles[i],
+                                'partitions': curr_plottables,
+                            })
+                            plottable_pairs_list.append(curr_plottables)
                     else:
                         # it's a placeholder
-                        new_params_list.append(curr_param)
-                        st.info(f"{plot_overview_type_index_position[i]} Not in the Data.")
-                st.session_state.univar_bivar_target_params_and_pairs = new_params_list
-                st.session_state.valid_group_param_indexes =  valid_indexes
+                        plottable_pairs_list.append(curr_plottables)
+                        st.info(f"{group_plot_unmutated_title_list[i]} Not in the Data.")
+                st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = plottable_pairs_list
+                st.session_state.valid_group_plottable_indexes = valid_indexes
+                st.session_state.group_plot_options = group_plot_options
+                st.session_state.mutated_group_plotable_titles = [i['display_title'] for i in group_plot_options]
 
-            if not st.session_state.group_plotable:
-                st.session_state.group_plotable = [plot_overview_type_index_position[i] for i in st.session_state.valid_group_param_indexes]
+
             if ( 
-                (st.session_state.group_plotable is not None) 
-                and 
-                (st.session_state.univar_bivar_target_params_and_pairs is not None) 
-                and 
-                (st.session_state.univar_bivar_target_params_and_pairs is not None)
+                (st.session_state.valid_group_plottable_indexes) 
+                and
+                (st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs)
+                and
+                (st.session_state.mutated_group_plotable_titles)
+                and
+                (st.session_state.group_plot_options)
                 ):
+                option_titles = [i['display_title'] for i in st.session_state.group_plot_options]
+                if not option_titles:
+                    st.session_state.curr_group_plot_selection = None
+                    st.session_state.master_group_plot_index = None
+                    st.session_state.seen = []
+                    st.session_state.seen_for_plot_selection = None
+                    st.info("No plottable groups found for the current dataset/settings.")
+                    plot_selection = None
+                else:
+                    if st.session_state.curr_group_plot_selection not in option_titles:
+                        st.session_state.curr_group_plot_selection = None
+                        st.session_state.master_group_plot_index = None
+                        st.session_state.seen = []
+                        st.session_state.seen_for_plot_selection = None
+
+                    defa = option_titles.index(st.session_state.curr_group_plot_selection) if st.session_state.curr_group_plot_selection else None
                 try:
+                    # default selection
                     plot_selection = st.segment_control("Select a Group to Plot", 
-                                                    st.session_state.group_plotable,
+                                                    option_titles,
                                                     selection_mode="single",
-                                                    default=None)
+                                                    default=defa)
                 except:
+                    # default selection
                     plot_selection = st.selectbox("Select a Group to Plot", 
-                                                    st.session_state.group_plotable,
-                                                    index=None)
+                                                    option_titles,
+                                                    index=defa)
+                    
                 if plot_selection:
 
+                    st.session_state.curr_group_plot_selection = plot_selection
+                    selected_group_option = st.session_state.group_plot_options[option_titles.index(plot_selection)]
+                    st.session_state.master_group_plot_index = selected_group_option['original_index']
 
-                    default_params =  {
+                  
+                    group_plot_params_dict = {
+                                            'num_univar_params':st.session_state.num_univar_params,
+                                            'cat_univar_params':st.session_state.cat_univar_params,
+                                            'numnum_bivar_params':st.session_state.numnum_bivar_params,
+                                            'numcat_bivar_params':st.session_state.numcat_bivar_params,
+                                            'catcat_bivar_params':st.session_state.catcat_bivar_params,
+                                            'catcat_bivar_params':st.session_state.catcat_bivar_params,
+                                            'super_subcat_pairs_params':st.session_state.super_subcat_pairs_params,
+                                            }
+              
+                    param_key = st.session_state.group_plot_param_keys[st.session_state.master_group_plot_index]
+                    iterable_variables = selected_group_option['partitions']
+
+                    # Reset only when user changes the selected plot group.
+                    if st.session_state.get('seen_for_plot_selection') != plot_selection:
+                        st.session_state.seen = []
+                        st.session_state.seen_for_plot_selection = plot_selection
+                    seen = st.session_state.setdefault('seen', [])
+                    selected_partition = []
+                    tabs = []
+                    if not iterable_variables:
+                        st.info('No partitions available for the selected group.')
+                    else:
+                        select_wid, seen_wid = st.columns([1, 1])
+                        with select_wid:
+                            partition_options = [i + 1 for i in range(len(iterable_variables))]
+                            if not partition_options:
+                                group_selection = None
+                            else:
+                                group_selection = st.selectbox('Select a Partition to Plot', partition_options, index=0)
+                        with seen_wid:
+                            st.info(f'Seen Partitions{sorted(seen)}')
+                         
+
+                        if group_selection is None:
+                            st.info('No selectable partition found for the selected group.')
+                        else:
+                            if group_selection not in seen:
+                                seen.append(group_selection)
+
+                            selected_partition = iterable_variables[group_selection - 1]
+
+                            def _tab_title(variable_to_plot):
+                                if isinstance(variable_to_plot, (list, tuple)):
+                                    return ' & '.join([str(v) for v in variable_to_plot])
+                                return str(variable_to_plot)
+
+                            tab_titles = [_tab_title(v) for v in selected_partition]
+                            tabs = st.tabs(tab_titles) if tab_titles else []
+
+                    for tab, variable_to_plot in zip(tabs, selected_partition):
+                        with tab:
+                            curr_params = group_plot_params_dict[param_key].copy()
+                            # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
+                            var_type_plot = st.session_state.group_plot_list_keys[st.session_state.master_group_plot_index]
+                            plotly_express = True
+                            if var_type_plot in ('num_univar', 'cat_univar'):
+                                par = {'x': variable_to_plot}
+                                curr_params.update(par)
+                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **curr_params)
+                            elif var_type_plot in ('numnum_bivar', 'numcat_bivar'):
+                                par = {'x': variable_to_plot[1], 'y': variable_to_plot[0]}
+                                curr_params.update(par)
+                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **curr_params)
+                            elif var_type_plot in ('catcat_bivar'):
+                                plot_func, par = st.session_state.plot_function[st.session_state.master_group_plot_index](variable_to_plot[0], variable_to_plot[1])
+                                curr_params.update(par)
+                                fig = plot_func(data_frame = st.session_state.data, **curr_params)
+                            elif var_type_plot in ('super_subcat_pairs'):
+                                par = {'super_subcat_pairs': [variable_to_plot],
                                         'cat_univar':False,   
                                         'num_univar':False, 
                                         'catcat_bivar':False,
                                         'numnum_bivar':False,
-                                        'numcat_bivar':False,
-                                        'super_subcat_pairs':False,
-                                        'cat_univar_params':st.session_state.cat_univar_params,
-                                        'catcat_bivar_params': st.session_state.catcat_bivar_params,
-                                        'numnum_bivar_params': st.session_state.numnum_bivar_params,
-                                        'numcat_bivar_params':  st.session_state.numcat_bivar_params,
-                                        'super_subcat_pairs_params': st.session_state.super_subcat_pairs_params,
-                                        'num_univar_params': st.session_state.num_univar_params
-                                        }    
+                                        'numcat_bivar':False}
+                                plot_params = {'super_subcat_pairs_params': curr_params ,'streamlit_':True}
+                                plot_params.update(par)
+                                plotly_express = False  # set to false because unlike the plotly.express functions, this renders the figure without needing to call st.write(fig)
+                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **plot_params)
+                            else:
+                                fig = None
+                            # to catch plots where functions display figures internally
+                            if (plotly_express):
+                                if fig is None:
+                                    st.warning('No figure generated for this tab.')
+                                elif hasattr(fig, 'to_plotly_json'):
+                                    st.plotly_chart(fig, use_container_width=True)
+                                elif isinstance(fig, tuple) and fig and hasattr(fig[0], 'savefig'):
+                                    st.pyplot(fig[0], use_container_width=True)
+                                elif hasattr(fig, 'savefig'):
+                                    st.pyplot(fig, use_container_width=True)
+                                elif hasattr(fig, 'figure') and hasattr(fig.figure, 'savefig'):
+                                    st.pyplot(fig.figure, use_container_width=True)
+                                else:
+                                    st.write(fig)
+                        
 
-                    iterable_params_list = st.session_state.univar_bivar_target_params_and_pairs[plot_overview_type_index_position.index(plot_selection)]
-                    # iterate and plot
-                    for params in iterable_params_list:
-                        # update input parameters  
-                        curr_params = default_params.copy()         
-                        curr_params.update(params)
-                        #  plot funciton
-                        st.session_state.AD.produce_all_plots(st.session_state.data,
-                                                    **curr_params,
-                                                    streamlit_=True)
+
+
                 
         # PLOT TARGETS
         # ---------------------------------------------------------------------------------------------------
@@ -1059,81 +1202,38 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                                         list(st.session_state.data.columns),
                                         index=None)
 
-            
 
-            available_ploting_options = [
-                                        'Univariate - Numeric Non-Normal and Categorical Non-Uniform',
-                                        'Numeric-Numeric With Correlation',
-                                        'Numeric-Categoric Reject Null', 
-                                        'Categoric-Categoric Reject Null',
-                                        'Categoric Partitioned by Another Categoric'
-                                        ]
-            try:
-                plot_type_selection = st.segment_control("Select a Plot Type", 
-                                                        available_ploting_options,
-                                                        selection_mode="multi")
-            except:
-                plot_type_selection = st.multiselect("Select a Plot Type", 
-                                                        available_ploting_options,
-                                                        default=None)
+            if variable_selection:
+        
 
-            plot_selections = st.button("Plot Selections")
-            if plot_selections:
-                if ( not variable_selection) or (not plot_type_selection):
-                    st.info("No Selections to Plot")
-                else:
 
-                    param_col_lists = [
-                                        {'not_uniform_or_reject_normal':True,
-                                         'num_univar_params':{**st.session_state.num_univar_params,'super_title':'Numerical Non-Normal'}
-                                         ,'cat_univar_params':{**st.session_state.cat_univar_params,'super_title':'Categorical Non-Uniform'}} ,   
-                                        {'reject_numnum':True,'numnum_bivar_params':{**st.session_state.numnum_bivar_params,'super_title':'Numeric-Numeric With Correlation'}}  ,  
-                                        {'reject_numcat':True,'numcat_bivar_params':{**st.session_state.numcat_bivar_params,'super_title':'Numeric-Categoric Reject Null'}}  ,  
-                                        {'reject_catcat':True,'catcat_bivar_params':{**st.session_state.catcat_bivar_params,'super_title':'Categoric-Categoric Reject Null'}}  ,  
-                                        {'is_super_or_subcat':True,'super_subcat_pairs_params':{**st.session_state.super_subcat_pairs_params,'super_title':'Categoric Partitioned by Another Categoric'}}   
-                                        ]
                     target_plot_default_params = {    
-                                                    'reject_numcat': False,  
-                                                    'reject_numnum': False,
-                                                    'reject_catcat': False,
+                                                    'reject_numcat': True,  
+                                                    'reject_numnum': True,
+                                                    'reject_catcat': True,
                                                     'is_super_or_subcat': False,
-                                                    'not_uniform_or_reject_normal': False,  
+                                                    'not_uniform_or_reject_normal': True,  
                                                     'reject_multivariates': False,        
                                                     'auto_fit': True,   
-                                                    'targets_share_plots': True ,  
+                                                    'targets_share_plots': False,  
                                                     'check_assumptions': True,
                                                     'dropna_gof': True,
-                                                    'cat_univar_params':  st.session_state.cat_univar_params,
-                                                    'catcat_bivar_params':  st.session_state.catcat_bivar_params,
-                                                    'numnum_bivar_params':  st.session_state.numnum_bivar_params,
-                                                    'numcat_bivar_params':  st.session_state.numcat_bivar_params,
-                                                    'super_subcat_pairs_params':  st.session_state.super_subcat_pairs_params,
-                                                    'num_univar_params':  st.session_state.num_univar_params
+                                                    'cat_univar_params':    st.session_state.catunivarparams,
+                                                    'catcat_bivar_params':  st.session_state.catcatbivarparams,
+                                                    'numnum_bivar_params':  st.session_state.numnumbivarparams,
+                                                    'numcat_bivar_params':  st.session_state.numcatbivarparams,
+                                                    'super_subcat_pairs_params':  st.session_state.supersubcatpairsparams,
+                                                    'num_univar_params':  st.session_state.numunivarparams
                                                     }
-                    # use this to make sure values are present to plot
-                    list_of_lists = [ list(st.session_state.AD.reject_null_normal)+list(st.session_state.AD.reject_null_good_of_fit),
-                                      st.session_state.AD.above_threshold_corr_numnum,
-                                      st.session_state.AD.reject_null_numcat,
-                                      st.session_state.AD.reject_null_catcat,
-                                      st.session_state.AD.supercategory_subcategory_pairs ] 
-                    # only update parameters where variables are selected
-                    index_list = []
-                    for  i in range(len(available_ploting_options)):
-                        if (available_ploting_options[i] in plot_type_selection):
-                            if ( not list_of_lists[i] ):
-                                st.warning(f"{available_ploting_options[i]} not present in the data")
-                            else:
-                                index_list.append(i)
-                    for index in index_list:
-                        target_plot_default_params.update(param_col_lists[index])
 
+  
                     st.session_state.AD.visualize_by_targets(
                                             data=st.session_state.data,
-                                            targets = list([variable_selection]),
+                                            targets = variable_selection,
                                             **target_plot_default_params ,
                                              streamlit_=True )
 
-
+#----------------------------------------------------------------------------------------------------------------------
 elif st.session_state.page == "Feedback":
     import datetime
 

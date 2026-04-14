@@ -471,7 +471,7 @@ class PlotClass:
                             n_wide:int|tuple|list,
                             stacked_bars_when_max_bars_is_exceeded:bool=True,
                             sorted:bool=True,
-                            super_title:str|None="Bivariate Analysis of Categorical Variables" ,
+                            super_title:str|None="Bivariate Analysis of Categoric and Categoric" ,
                    streamlit_:bool|None = None):
         """
         categorical should be a list of column pairs: [[cola,colb],[colc,cold], ...]
@@ -577,7 +577,8 @@ class PlotClass:
                     label.set_ha('right') 
                 y_label='Count' 
                 ax.set_ylabel(y_label)
-                plt.grid()
+                if stacked==False:
+                    plt.grid()
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
@@ -674,7 +675,8 @@ class PlotClass:
                         label.set_ha('right') 
                     y_label=num_col
                     ax.set_ylabel(y_label)
-                    plt.grid()
+                    if len(ax.get_xticks()) <= 60:
+                        plt.grid()
             available_row_start_index = 0
         #plt.tight_layout()
         if streamlit_==False:
@@ -784,7 +786,7 @@ class PlotClass:
                                             column_combos:list,
                                             plot_type:str='scatter',
                                             linreg:bool=True,                        
-                                            super_title:str|None="Bivariate Analysis: Numeric to Numeric",
+                                            super_title:str|None="Bivariate Analysis of Numeric and Numeric",
                                             plot_type_kwargs:dict|None=None,
                                             linreg_kwargs:dict|None=None ,
                    streamlit_:bool|None = None):
@@ -940,8 +942,9 @@ class PlotClass:
                 for label in ax.get_xticklabels():
                     label.set_ha('right') 
                 y_label='Count' if proportions==False else 'Proportion'
-                ax.set_ylabel(y_label)
-                plt.grid()
+                ax.set_ylabel(y_label)                    
+                if len(ax.get_xticks()) <= 60:
+                    plt.grid()
             curr_row+=1
             available_row_start_index = 0
         #plt.tight_layout()
@@ -1006,7 +1009,10 @@ class PlotClass:
                 vals = pd.Series(keep_bins_significant[col])
                 bin_dict.update({col:vals})
             else:
-                vals = pd.Series(np.histogram_bin_edges(data[col],bins='auto'))
+                try:
+                    vals = pd.Series(np.histogram_bin_edges(data[col],bins='auto'))
+                except:
+                    vals = pd.Series(np.histogram_bin_edges(data[col], range = (data[col].min(),data[col].max())))
                 bin_dict.update({col:vals})
         
         if isinstance(n_wide,int):  # case where plots should have horizontal bars.
@@ -1235,7 +1241,8 @@ class PlotClass:
             plt.title(curr_supercat_header)
             sns.barplot(x=super_plot_data.index,y=super_plot_data.values,ax=ax_super)
             ax_super.set_xlabel('')
-            plt.grid()
+            if len(ax_super.get_xticks()) <= 60:
+                plt.grid()
             curr_subcat_header=supercat_map[2]
             # increment to the next row
             subcat_header_start_row = supercat_header_start_row+1

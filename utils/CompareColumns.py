@@ -52,7 +52,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
         result_frames_to_concat = []
 
         #create boolean variables to use for managing targets
-        is_cat_target, is_num_target = (categoric_target is not None), (numeric_target is not None)
+        is_cat_target, is_num_target = (not (not categoric_target)), (not (not numeric_target))
         # if there are any targets at all
         if is_cat_target or is_num_target:  # there is cat or num targets or both
             if not is_num_target: # then there is a cat target and no num target
@@ -119,6 +119,17 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
             numnum_df['test']=numnum_meth_alpha_above[0]
             if numnum_df.shape[0]>0:                
                     result_frames_to_concat.append(numnum_df)
+                    
+        possible_columns=['column_a','column_b','test','P-value','Correlation']
+        if (not result_frames_to_concat):
+            return pd.DataFrame(columns=possible_columns)
+        result=pd.concat(result_frames_to_concat)
+        result=result[[col for col in possible_columns if col in result.columns]]
+        return result
+
+
+
+
     def multi_test_column_comparison(self,
                         df,
                         numnum_meth_alpha_above:tuple|list|None=[('pearson',0.6,True),('spearman',0.6,True),('kendall',0.6,True)],
@@ -251,7 +262,7 @@ class CompareColumns(ANOVA, Chi2, Coefficient, TTests):
                 if numnum_df.shape[0]>0:
                     result_frames_to_concat.append(numnum_df)
         possible_columns=['column_a','column_b','test','P-value','Correlation','assumptions_met']
-        if len(result_frames_to_concat)<1:
+        if (not result_frames_to_concat):
             return pd.DataFrame(columns=possible_columns)
         result=pd.concat(result_frames_to_concat)
         result=result[[col for col in possible_columns if col in result.columns]]

@@ -26,6 +26,7 @@ except ImportError:
 
 import pandas as pd
 import numpy as np
+import warnings
 from warnings import warn
 from itertools import combinations
 
@@ -35,7 +36,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                  numnum_meth_alpha_above_instructions:list|tuple|None|bool=True, 
                  numcat_meth_alpha_above_instructions:list|tuple|None|bool=True, 
                  catcat_meth_alpha_above_instructions:list|tuple|None|bool=True,
-                 good_of_fit_uniform_test_instrucions:list|tuple|None|bool=True,
+                 good_of_fit_uniform_test_instructions:list|tuple|None|bool=True,
                  normal_test_instructions:list|tuple|None|bool            =True,
                  multivariate_concatenation_delimiter:str|None            =None,
                  #continuous_ordinalized_suffix:str='-ADcont-Ordinalized',  #AD for AnalyzeDataset class, cont for continuous
@@ -55,7 +56,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
             numnum_meth_alpha_above_instructions:list|tuple|None|bool=True, 
             numcat_meth_alpha_above_instructions:list|tuple|None|bool=True, 
             catcat_meth_alpha_above_instructions:list|tuple|None|bool=True,
-            good_of_fit_uniform_test_instrucions:list|tuple|None|bool=True,
+            good_of_fit_uniform_test_instructions:list|tuple|None|bool=True,
                 True defaults to default params, None and False indicate it is not tested (such as for debugging)
 
         """   
@@ -111,7 +112,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         self.numnum_meth_alpha_above              = [('pearson',0.6,None),('spearman',0.6,None),('kendall',0.6,None)] if numnum_meth_alpha_above_instructions == True else None if numnum_meth_alpha_above_instructions == False else numnum_meth_alpha_above_instructions # where t tests cannot share the parameter with correlation tests
         self.numcat_meth_alpha_above              = [('kruskal',0.05,None),('anova',0.05,None)] if numcat_meth_alpha_above_instructions == True else None if numcat_meth_alpha_above_instructions == False else numcat_meth_alpha_above_instructions # where variable is not like stat dataframe. dataframe has numric in column 0 and categoric in column 1
         self.catcat_meth_alpha_above              = [('chi2',0.05,None)] if catcat_meth_alpha_above_instructions == True else None if catcat_meth_alpha_above_instructions == False else catcat_meth_alpha_above_instructions
-        self.good_of_fit_uniform_test_instrucions = (0.05,None) if good_of_fit_uniform_test_instrucions == True else None if good_of_fit_uniform_test_instrucions == False else good_of_fit_uniform_test_instrucions
+        self.good_of_fit_uniform_test_instructions = (0.05,None) if good_of_fit_uniform_test_instructions == True else None if good_of_fit_uniform_test_instructions == False else good_of_fit_uniform_test_instructions
         self.normal_test_instrucitons             = (0.05,None) if normal_test_instructions == True else None if normal_test_instructions == False else normal_test_instructions
 
         default_multivariate_params = {'max_n_combination_size':3, 'max_n_combinations':50_000,  'min_combo_size':2}
@@ -261,7 +262,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         rej_or_corr_df = test_df.loc[test_df['test'].isin(list_of_tests)]
         failrej_or_below_corr_df = test_df.loc[test_df['test'].isin(list_of_tests)]
         # capture all assumptions_met==False
-        if (check_assumptions==True) and ('assumptions_met' in test_df.columns):
+        if (check_assumptions) and ('assumptions_met' in test_df.columns):
             assumptions_not_met_list = test_df.loc[(test_df['test'].isin(list_of_tests))&(test_df['assumptions_met']==False)][['column_a','column_b']].drop_duplicates(keep='first').to_numpy().tolist()
 
         for instructions in test_instructions:
@@ -274,10 +275,10 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                 failrej_or_below_corr_df = failrej_or_below_corr_df.loc[~((failrej_or_below_corr_df['test']==instructions[0])&(failrej_or_below_corr_df['P-value']<instructions[1]))]
         
         # filter out all assumptions_met==False & and concat assumption met result to test type
-        if (check_assumptions==True) and ('assumptions_met' in rej_or_corr_df.columns):
+        if (check_assumptions) and ('assumptions_met' in rej_or_corr_df.columns):
             rej_or_corr_df                     =  rej_or_corr_df.loc[rej_or_corr_df['assumptions_met']!=False]
             rej_or_corr_df['test']             =  rej_or_corr_df['test'].astype(str)+':'+rej_or_corr_df['assumptions_met'].astype(str) 
-        if (check_assumptions==True) and ('assumptions_met' in failrej_or_below_corr_df.columns):
+        if (check_assumptions) and ('assumptions_met' in failrej_or_below_corr_df.columns):
             failrej_or_below_corr_df           = failrej_or_below_corr_df.loc[failrej_or_below_corr_df['assumptions_met']!=False]
             failrej_or_below_corr_df['test']   = failrej_or_below_corr_df['test'].astype(str)+':'+failrej_or_below_corr_df['assumptions_met'].astype(str)
         # POTENTIAL ADD P VALUE TO TEST STRING HERE 
@@ -431,11 +432,11 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                     _key = 'catcat'
                 if _key!='numcat':
                     for pair in assumptions_not_met_list:
-                        assumptions_not_met_target_updater(pair,targets,_key)
+                        assumptions_not_met_target_updater(pair, targets, _key)
                     assumptions_not_met_update_list = [sorted(pair.copy()) for pair in assumptions_not_met_list if sorted(pair.copy()) not in self.assumptions_not_met[_key]]
                 else:
                     for pair in assumptions_not_met_list:
-                        assumptions_not_met_target_updater(sorted(pair.copy()),targets,_key)
+                        assumptions_not_met_target_updater(pair, targets ,_key)
                     assumptions_not_met_update_list = [pair for pair in assumptions_not_met_list if pair not in self.assumptions_not_met[_key]]
                 self.assumptions_not_met[_key]+=assumptions_not_met_update_list
     
@@ -783,11 +784,11 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         # test categorical univariate agianst a uniform distribution
         good_of_fit_uniform_df = self.filterable_all_column_goodness_of_fit(
                                                                             df,
-                                                                            cat_alpha_above=self.good_of_fit_uniform_test_instrucions,
+                                                                            cat_alpha_above=self.good_of_fit_uniform_test_instructions,
                                                                             categoric_columns=categoric_columns,
                                                                             dropna=dropna,
                                                                             check_assumptions=check_assumptions)
-        good_of_fit_threshold=self.good_of_fit_uniform_test_instrucions[0]
+        good_of_fit_threshold=self.good_of_fit_uniform_test_instructions[0]
         # reject and fail to reject
         if check_assumptions==False:
             # reject
@@ -1405,7 +1406,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         categorical:list|tuple|None=None,
                                         proportions:bool=False,
                                         n_wide:int|tuple|list=(6,40,4),
-                                        super_title:str|None="Univariate Categorical Variables - Reject Good-Of-Fit for Uniform" ,
+                                        super_title:str|None="Univariate Categoric - Reject Good-Of-Fit for Uniform" ,
                    streamlit_:bool|None = None):
         """
         where if categorical is None, columns from self.reject_null_good_of_fit will be ploted. Otherwise columns in cateigorical will be ploted.
@@ -1441,7 +1442,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         kde:bool|None=None,
                                         proportions:bool=False,
                                         n_wide:int|tuple|list=(6,40,4),
-                                        super_title:str|None="Univariate Numerical Variables - Reject Good-Of-Fit for Uniform",
+                                        super_title:str|None="Univariate Numeric - Reject Normal Distribution",
                                         force_significant_bin_edges:bool|None=None,
                                         minimize_significant_bins:bool|None=None,
                                         include_multivariate:bool|None=None ,
@@ -1469,13 +1470,25 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                                                     target=col,
                                                                     check_multivar=include_multivariate,
                                                                     original_value_count_threashold=5)
-                if min_bins is not None:
+                if (min_bins):
                     if minimize_significant_bins!=True:
-                        bin_edges = np.histogram_bin_edges(data[col], bins='auto')
-                        if (len(bin_edges)-1)<min_bins:
-                            bin_edges = np.histogram_bin_edges(data[col],bins=min_bins)
+                        try:
+                            bin_edges = np.histogram_bin_edges(data[col], bins='auto')
+                        except:
+                            bin_edges = np.histogram_bin_edges(data[col], range = (data[col].min(),data[col].max()))
+                        if (min_bins) and (len(bin_edges)-1)<min_bins:
+                            try:
+                                bin_edges = np.histogram_bin_edges(data[col],bins=min_bins)
+                            except:
+                                bin_edges = np.histogram_bin_edges(data[col],bins=min_bins, range = (data[col].min(),data[col].max()))
                     else:
-                        bin_edges = np.histogram_bin_edges(data[col],bins=min_bins)
+                        try:
+                            bin_edges = np.histogram_bin_edges(data[col],bins=min_bins)
+                        except:
+                            try:
+                                bin_edges = np.histogram_bin_edges(data[col],bins=min_bins, range = (data[col].min(),data[col].max()))
+                            except:
+                                bin_edges = np.histogram_bin_edges(data[col], range = (data[col].min(),data[col].max()))
                     u_d = {col:pd.Series(bin_edges)}
                     keep_bins_significant.update(u_d)
         
@@ -1501,7 +1514,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         n_wide:int|tuple|list=(6,40,5),
                                         stacked_bars_when_max_bars_is_exceeded:bool=True,
                                         sorted:bool=False,
-                                        super_title:str|None="Categoric-To-Categoric Bivariates - Reject Null" ,
+                                        super_title:str|None="Categoric-Categoric Bivariates - Reject Null" ,
                    streamlit_:bool|None = None):
         """
         where if column_combinations is None, combinations from self.reject_null_catcat will be ploted. Otherwise combinations in column_combinations will be ploted.
@@ -1533,7 +1546,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                        column_combos:list|tuple|None=None,
                                        plot_type:str='joint',
                                        linreg:bool=True,
-                                       super_title:str='Numeric Bivariates With Significant Correlation(s)',
+                                       super_title:str='Numeric-Numeric Bivariates - With Correlation',
                                        plot_type_kwargs:dict|None=None,
                                        linreg_kwargs:dict|None=None ,
                    streamlit_:bool|None = None):
@@ -1569,7 +1582,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                             column_combos:list|tuple|None=None,
                                             plot_type:str='boxen', #box, boxen, or violin
                                             n_wide:int|tuple|list=(6,40,8),
-                                            super_title:str|None='Numeric-to-Categoric Bivariates - Reject Null' ,
+                                            super_title:str|None='Numeric-Categoric Bivariates - Reject Null' ,
                    streamlit_:bool|None = None):
         """
         where if column_combos is None, combinations from self.reject_null_numcat will be ploted. Otherwise combos in column_combos will be ploted.
@@ -2221,7 +2234,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
         if original_value_count_threashold is None:
             original_value_count_threashold=5
 
-
+        data = data.copy()
 
         # stage data based on test type because many varaibles can have multiple test types
         test_dict = {'pearson':set(),'spearman':set(),'kendall':set(),'anova':set(),'kruskal':set(),'welch':set(),'student':set()}
@@ -2413,16 +2426,16 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                                 'Type',
                                                 'Distribution',
                                                 'MaxLenCombosComparedTo'
-                                                'FeatureColum(s)'
+                                                'FeatureColumn(s)'
                                                 'Test(s)'
 
             columns:
-                'FeatureColum(s)': single strings that are column headers, or lists of headers that make up combo(s)
+                'FeatureColumn(s)': single strings that are column headers, or lists of headers that make up combo(s)
                 'Test(s)': indicates the tests used to determine relationship status            
         """
         
 
-        print("Where 'MaxLenComboComparedTo' can vary depending on compute limits and number of possible combinations in combo sizes.\n'FeatureColum(s)' is a combination or single column that shares a significant relationship according to the test(s).\n'Test(s)' lists the test(s) used. If the testname is followed by a colon, that signals whether assumptions were met for that specifit test.")
+        print("Where 'MaxLenComboComparedTo' can vary depending on compute limits and number of possible combinations in combo sizes.\n'FeatureColumn(s)' is a combination or single column that shares a significant relationship according to the test(s).\n'Test(s)' lists the test(s) used. If the testname is followed by a colon, that signals whether assumptions were met for that specifit test.")
 
         if targets is None:
             targets = self.has_called_fit_column_relationships
@@ -2485,7 +2498,7 @@ class AnalyzeDataset(Bin, CompareColumns, Chi2, PlotClass, UnivariateNormal):
                                         'Type':grand_data_type,
                                         'Distribution':grand_is_normal_or_uniform,
                                         'MaxLenCombosComparedTo':grand_max_multivar_combo_size,
-                                        'FeatureColum(s)':grand_feature_variables,
+                                        'FeatureColumn(s)':grand_feature_variables,
                                         'Test(s)':grand_test_types})
         result_dataframe = result_dataframe.set_index(['Target',
                                                         'Type',
