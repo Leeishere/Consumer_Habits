@@ -63,8 +63,8 @@ if "numcat_meth_alpha_above_instructions" not in st.session_state:
 if "catcat_meth_alpha_above_instructions" not in st.session_state:
     st.session_state.catcat_meth_alpha_above_instructions = [["chi2", 0.05, None]]
 
-if "good_of_fit_uniform_test_instrucions" not in st.session_state:
-    st.session_state.good_of_fit_uniform_test_instrucions = [0.05, None]
+if "good_of_fit_uniform_test_instructions" not in st.session_state:
+    st.session_state.good_of_fit_uniform_test_instructions = [0.05, None]
 
 if "normal_test_instructions" not in st.session_state:
     st.session_state.normal_test_instructions = [0.05, None]
@@ -209,13 +209,13 @@ if st.session_state.page == "Data Upload & Processing":
             st.session_state.catcat_meth_alpha_above_instructions[0][1] = new_val
         
         # P-value threshold for good-of-fit uniform
-        current_p_gof = st.session_state.good_of_fit_uniform_test_instrucions[0]
+        current_p_gof = st.session_state.good_of_fit_uniform_test_instructions[0]
         p_gof_options = [current_p_gof, 0.025, 0.01]
         p_gof_labels = [f"{current_p_gof}"] + [str(i) for i in p_gof_options[1:]]
         selected_p_gof = st.selectbox("P-value Threshold (Good-of-Fit Uniform)", p_gof_labels, index=0)
         if selected_p_gof != p_gof_labels[0]:
             new_val = p_gof_options[p_gof_labels.index(selected_p_gof)]
-            st.session_state.good_of_fit_uniform_test_instrucions[0] = new_val
+            st.session_state.good_of_fit_uniform_test_instructions[0] = new_val
         
         # P-value threshold for normal test
         current_p_norm = st.session_state.normal_test_instructions[0]
@@ -761,7 +761,7 @@ if st.session_state.page == "Data Upload & Processing":
                                                     numnum_meth_alpha_above_instructions=st.session_state.numnum_meth_alpha_above_instructions,
                                                     numcat_meth_alpha_above_instructions=st.session_state.numcat_meth_alpha_above_instructions,
                                                     catcat_meth_alpha_above_instructions=st.session_state.catcat_meth_alpha_above_instructions,
-                                                    good_of_fit_uniform_test_instrucions=st.session_state.good_of_fit_uniform_test_instrucions,
+                                                    good_of_fit_uniform_test_instructions=st.session_state.good_of_fit_uniform_test_instructions,
                                                     normal_test_instructions=st.session_state.normal_test_instructions
                                                     )
             st.session_state.AD.fit_full_dataset_analysis(st.session_state.data,  
