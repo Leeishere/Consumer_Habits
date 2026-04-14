@@ -12,5 +12,10 @@ GitIgnoredStuff/
 /AnalysisClassGamePlan.ipynb
 /ReviewsToDo.ipynb
 ML_prototyping.ipynb
-utils/analyze_dataset_quickstart_II.ipynb
+analyze_dataset_quickstart_II.ipynb
+analyze_dataset_quickstart_II copy.ipynb
+analyze_dataset_quickstart.ipynb
+data_analyzer_app.py
+binner_quickstart.ipynb
+compare_columns_quickstart.ipynb
 data_analyzer_app.py
