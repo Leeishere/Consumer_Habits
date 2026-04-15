@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 
 from utils.AnalyzeDataset import AnalyzeDataset
+from utils.utils_APP_DataAnalyzer import chunk_plotables_mutate_titles, plot_one_title
 
 
 # SESSION STATE
@@ -76,7 +77,7 @@ if 'max_frac_droppable_nan_cat' not in st.session_state:
 
 
 if "kruskal_assumption_check_params" not in st.session_state:
-    st.session_state.kruskal_assumption_check_params = {"levene_alpha": 0.01, "ks_alpha": 0.01, "return_pseudo": True, "pseudo_test_max_global_ties_ratio": 0.7, "full_pseudo": False, "dropna": True, "n_jobs": 4, "guesstimate": {"rej_max_pct_in_group": 0.2, "max_num_outlier_all_reject": 3, "max_pct_reject_total": 0.2}}
+    st.session_state.kruskal_assumption_check_params = {"levene_alpha": 0.01, "ks_alpha": 0.01, "return_pseudo": False, "pseudo_test_max_global_ties_ratio": 0.7, "full_pseudo": False, "dropna": True, "n_jobs": 4, "guesstimate": {"rej_max_pct_in_group": 0.2, "max_num_outlier_all_reject": 3, "max_pct_reject_total": 0.2}}
 
 if "anova_assumption_check_params" not in st.session_state:
     st.session_state.anova_assumption_check_params = {"normality_alpha": 0.01, "homogeneity_alpha": 0.01, "min_n": 5, "iqr_multiplier": 2, "dropna": True}
@@ -128,7 +129,7 @@ if 'step' not in st.session_state:
 # =======================================================================================================================================
 
 if 'n_wide' not in st.session_state:
-    st.session_state.n_wide = {'n_wide': [8, 30, 4]}  # axises per row, total bars per row, row height in inches
+    st.session_state.n_wide = {'n_wide': [8, 40, 4]}  # axises per row, total bars per row, row height in inches
 
 if "cat_univar_params" not in st.session_state:
     st.session_state.cat_univar_params = {"histfunc":'count'}
@@ -148,6 +149,17 @@ if "super_subcat_pairs_params" not in st.session_state:
 
 if "num_univar_params" not in st.session_state:
     st.session_state.num_univar_params = {}
+
+if 'plot_params_dict' not in st.session_state:
+    st.session_state.plot_params_dict = {
+        'num_univar_params':st.session_state.num_univar_params,
+        'cat_univar_params':st.session_state.cat_univar_params,
+        'numnum_bivar_params':st.session_state.numnum_bivar_params,
+        'numcat_bivar_params':st.session_state.numcat_bivar_params,
+        'catcat_bivar_params':st.session_state.catcat_bivar_params,
+        'catcat_bivar_params':st.session_state.catcat_bivar_params,
+        'super_subcat_pairs_params':st.session_state.super_subcat_pairs_params,
+        }
 
 if "catunivarparams" not in st.session_state:
     st.session_state.catunivarparams = {"proportions": False, "n_wide": (8, 30, 4), "super_title": "Univariate Categorical Variables - Reject Good-Of-Fit for Uniform"}
@@ -171,23 +183,29 @@ if "numunivarparams" not in st.session_state:
 # PLOT LISTS
 # =====================================================================================================================================
 # =====================================================================================================================================
-if 'valid_group_plottable_indexes' not in st.session_state:
-    st.session_state.valid_group_plottable_indexes = None
-
-if 'univar_bivar_list_of_iterable_plottable_group_header_pairs' not in st.session_state:
-    st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = None
-
 if 'chunk_size' not in st.session_state:
     st.session_state.chunk_size = 5
 
 if 'group_plot_options' not in st.session_state:
     st.session_state.group_plot_options = None
 
-if 'group_plotable' not in st.session_state:
-    st.session_state.mutated_group_plotable_titles = None
+if 'target_plot_options' not in st.session_state:
+    st.session_state.target_plot_options = None
 
-if 'group_plot_list_keys' not in st.session_state:
-    st.session_state.group_plot_list_keys = [
+if 'mutated_group_plot_titles' not in st.session_state:
+    st.session_state.mutated_group_plot_titles = None
+
+if 'mutated_target_plot_titles' not in st.session_state:
+    st.session_state.mutated_target_plot_titles = None
+
+if 'plottable_group_indexes' not in st.session_state:
+    st.session_state.plottable_group_indexes = None
+
+if 'plottable_target_indexes' not in st.session_state:
+    st.session_state.plottable_target_indexes = None
+
+if 'plot_list_keys' not in st.session_state:
+    st.session_state.plot_list_keys = [
         'num_univar', 'num_univar', 
         'cat_univar', 'cat_univar',
         'numnum_bivar', 'numnum_bivar',
@@ -198,8 +216,8 @@ if 'group_plot_list_keys' not in st.session_state:
         'num_univar', 'cat_univar'
         ]
     
-if 'group_plot_param_keys' not in st.session_state:
-    st.session_state.group_plot_param_keys = [
+if 'plot_param_keys' not in st.session_state:
+    st.session_state.plot_param_keys = [
                                             'num_univar_params' , 'num_univar_params' ,
                                             'cat_univar_params' , 'cat_univar_params' ,
                                             'numnum_bivar_params' , 'numnum_bivar_params' ,
@@ -210,14 +228,42 @@ if 'group_plot_param_keys' not in st.session_state:
                                             'num_univar_params' , 'cat_univar_params'
                                             ]
     
+if 'unmutated_title_list' not in st.session_state:
+    # un mutated plot options
+    st.session_state.unmutated_title_list = [
+                'Numerical Non-Normal', 'Numerical Normal',
+                'Categorical Non-Uniform', 'Categorical Uniform',
+                'Numeric-Numeric With Correlation','Numeric-Numeric Without Correlation',
+                'Numeric-Categoric Reject Null', 'Numeric-Categoric Fail to Reject Null',
+                'Categoric-Categoric Reject Null','Categoric-Categoric Fail to Reject Null',
+                'Categoric Partitioned by Another Categoric',
+                'Assumptions Not Met - Categoric-Categoric',
+                'Assumptions Not Met - Numeric-Numeric',
+                'Assumptions Not Met - Numeric-Categoric',
+                'Assumptions Not Met - Numerical',
+                'Assumptions Not Met - Categorical'
+                ]
+    
 if ('plot_function' not in st.session_state):
     st.session_state.plot_function = None
     
 if 'curr_group_plot_selection' not in st.session_state:
     st.session_state.curr_group_plot_selection = None
 
+if 'curr_target_plot_selection' not in st.session_state:
+    st.session_state.curr_target_plot_selection = None
+
 if 'master_group_plot_index' not in st.session_state:
     st.session_state.master_group_plot_index = None
+
+if 'master_target_plot_index' not in st.session_state:
+    st.session_state.master_target_plot_index = None
+
+if 'curr_target_selection' not in st.session_state:
+    st.session_state.curr_target_selection = None
+
+if 'curr_target_plot_lists' not in st.session_state:
+    st.session_state.curr_target_plot_lists = None
     
 # CALL_BACKS
 # =======================================================================================================================================
@@ -228,17 +274,30 @@ def set_page():
 # functions
 # =======================================================================================================================================
 # =======================================================================================================================================  
-def return_catcat_plottype(x,y):
+# process bivariate categorical input to determine plot type: group vs stack
+def return_catcat_plottype(x, y):
     _df = st.session_state.indexed_col_meta_df
-    xniq = int(_df[_df.index == x]['n_unique'].iloc[0])
-    yniq = int(_df[_df.index == y]['n_unique'].iloc[0])
-    curr_x_curr_color = (x,y) if xniq>yniq else (y,x)
+    xniq = int(_df.loc[x, 'n_unique'])
+    yniq = int(_df.loc[y, 'n_unique'])
+
+    curr_x_curr_color = (x, y) if xniq > yniq else (y, x)
+
     if (xniq * yniq) <= st.session_state.n_wide['n_wide'][1]:
-        params = {'x':curr_x_curr_color[0], 'color':curr_x_curr_color[1], "histfunc":"count"}
-        return px.histogram, params
+        params = {
+            'x': curr_x_curr_color[0],
+            'color': curr_x_curr_color[1],
+            'histfunc': 'count',
+            'barmode': 'group',
+        }
     else:
-        params = {'x':curr_x_curr_color[0], 'color':curr_x_curr_color[1], 'barmode':"stack"}
-        return px.bar,  params
+        params = {
+            'x': curr_x_curr_color[0],
+            'color': curr_x_curr_color[1],
+            'histfunc': 'count',
+            'barmode': 'stack',
+        }
+
+    return px.histogram, params
 
 
 
@@ -308,26 +367,30 @@ if st.session_state.page == "Data Upload & Processing":
             st.session_state.normal_test_instructions[0] = new_val
 
         # decide to isolate partitioning super-subcat pairs
-        curr_isolate = st.session_state.supercat_subcat_params["isolate_super_subs"]
-        isolate_options = [curr_isolate, not curr_isolate]
-        selected_isolate = st.selectbox("Isolate Partitioning Super-Subcategory Counterparts",isolate_options,index=0)
-        if selected_isolate != st.session_state.supercat_subcat_params['isolate_super_subs']:
-            st.session_state.supercat_subcat_params.update({'isolate_super_subs':selected_isolate })
-
-        
-        # return pseudo{'full_pseudo':False}
-        curr_ret_p = st.session_state.kruskal_assumption_check_params['return_pseudo']
-        retp_options = [curr_ret_p, not curr_ret_p]
-        selected_retp = st.selectbox("Test Similarity Instead When Strict Mean Assumptions Aren't Met\nIn Kruskal-Wallis Test",retp_options,index=0)
-        if selected_retp != st.session_state.kruskal_assumption_check_params['return_pseudo']:
-            st.session_state.kruskal_assumption_check_params.update({'return_pseudo':selected_retp })
-
+        #curr_isolate = st.session_state.supercat_subcat_params["isolate_super_subs"]
+        #isolate_options = [curr_isolate, not curr_isolate]
+        #selected_isolate = st.selectbox("Isolate Partitioning Super-Subcategory Counterparts",isolate_options,index=0)
+        #if selected_isolate != st.session_state.supercat_subcat_params['isolate_super_subs']:
+            #st.session_state.supercat_subcat_params.update({'isolate_super_subs':selected_isolate })
+      
+        if st.session_state.kruskal_assumption_check_params['full_pseudo']==False:
+            # return pseudo{'full_pseudo':False}
+            curr_ret_p = st.session_state.kruskal_assumption_check_params['return_pseudo']
+            retp_options = [curr_ret_p, not curr_ret_p]
+            selected_retp = st.selectbox("Test Similarity Instead When Strict Mean Assumptions Aren't Met\nIn Kruskal-Wallis Test",retp_options,index=0)
+            if selected_retp != st.session_state.kruskal_assumption_check_params['return_pseudo']:
+                st.session_state.kruskal_assumption_check_params.update({'return_pseudo':selected_retp })
+      
         # return pseudo
         curr_ps = st.session_state.kruskal_assumption_check_params['full_pseudo']
         ps_options = [curr_ps, not curr_ps]
         selected_ps = st.selectbox("Only Test Distribution Similarity. Not Mean\nIn Kruskal-Wallis Test",ps_options,index=0)
         if selected_ps != st.session_state.kruskal_assumption_check_params['full_pseudo']:
             st.session_state.kruskal_assumption_check_params.update({'full_pseudo':selected_ps})
+        
+
+
+
 
 
 
@@ -382,11 +445,19 @@ if st.session_state.page == "Data Upload & Processing":
                 if st.session_state.uploaded_file_name != uploaded_file.name:
 
                     # reset dynamic ploting variables
-                    st.session_state.valid_group_plottable_indexes = None
-                    st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = None
-                    st.session_state.mutated_group_plotable_titles = None
                     st.session_state.group_plot_options = None
+                    st.session_state.target_plot_options = None
+
+                    st.session_state.mutated_group_plot_titles = None
+                    st.session_state.mutated_target_plot_titles = None
+
+                    st.session_state.plottable_group_indexes = None
+                    st.session_state.plottable_target_indexes = None
+
                     st.session_state.plot_function = None
+
+                    st.session_state.curr_target_selection = None
+                    st.session_state.curr_target_plot_lists = None
                     
 
                     st.session_state.step = 1
@@ -599,7 +670,8 @@ if st.session_state.page == "Data Upload & Processing":
                                                         st.session_state.one_not_recognized |
                                                         st.session_state.not_the_same |
                                                         st.session_state.indexed_col_meta_df['drop'].copy() |
-                                                        st.session_state.indexed_col_meta_df['make_change'].copy()
+                                                        st.session_state.indexed_col_meta_df['make_change'].copy() |
+                                                        (st.session_state.indexed_col_meta_df['pct_unique']>.8)
                                                         )][['original_dtype', 'possible_change', 
                                                             'n_unique','pct_unique',  
                                                             'n_nan','pct_nan', 'make_change', 'drop']]
@@ -858,6 +930,8 @@ if st.session_state.page == "Data Upload & Processing":
                                 fit_multivariates=False,       # instruct to test multivariate significance
                                 fit_supercat_subcats=True)    # test for super categories with subcategories that partition other variables
             
+            # this calls return_catcat_plottype and st.session_state.AD.produce_all_plots, so it is placed here 
+            # after st.session_state.AD is fit and return_catcat_plottype is defined
             if ('plot_function' not in st.session_state) or (not st.session_state.plot_function):
                                 st.session_state.plot_function = [
                                     px.histogram, px.histogram,        # 0,1  num_univar
@@ -900,11 +974,9 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         
         # Number of plot axes per row
         chunk_size_options = [1,5,10]
-        selected_chunk_size = st.selectbox("Number of plots per batch", chunk_size_options, index=chunk_size_options.index(st.session_state.chunk_size) if st.session_state.chunk_size in chunk_size_options else 0)
+        selected_chunk_size = st.selectbox("Number of plots per batch", chunk_size_options, index=chunk_size_options.index(st.session_state.chunk_size) if st.session_state.chunk_size in chunk_size_options else 0) 
         
-        
-        
-        st.header("Numeric-Numeric Bivariate Parameters")
+        #st.header("Numeric-Numeric Bivariate Parameters")
         
         # plot_type for numnum_bivar_params
         #numnum_plot_type_options = ["joint", "scatter"]
@@ -918,25 +990,25 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         #selected_linreg = st.selectbox("Include linear regression line", linreg_options, index=linreg_options.index(current_linreg))
         #st.session_state.numnum_bivar_params['linreg'] = selected_linreg 
         
-        st.header("Supercategory-Subcategory Parameters")
+        #st.header("Supercategory-Subcategory Parameters")
         
         # row_height for super_subcat_pairs_params
-        row_height_options = [2, 3, 4, 5]
-        current_row_height = st.session_state.super_subcat_pairs_params.get('row_height', 3)
-        selected_row_height = st.selectbox("Row height (inches) for supersubcat plots", row_height_options, index=row_height_options.index(current_row_height) if current_row_height in row_height_options else 1)
-        st.session_state.super_subcat_pairs_params['row_height'] = selected_row_height
+        #row_height_options = [2, 3, 4, 5]
+        #current_row_height = st.session_state.super_subcat_pairs_params.get('row_height', 3)
+        #selected_row_height = st.selectbox("Row height (inches) for supersubcat plots", row_height_options, index=row_height_options.index(current_row_height) if current_row_height in row_height_options else 1)
+        #st.session_state.super_subcat_pairs_params['row_height'] = selected_row_height
         
         # cols_per_row for super_subcat_pairs_params
-        cols_per_row_options = [1, 2, 3, 4]
-        current_cols_per_row = st.session_state.super_subcat_pairs_params.get('cols_per_row', 2)
-        selected_cols_per_row = st.selectbox("Columns per row for subcategory plots", cols_per_row_options, index=cols_per_row_options.index(current_cols_per_row) if current_cols_per_row in cols_per_row_options else 1)
-        st.session_state.super_subcat_pairs_params['cols_per_row'] = selected_cols_per_row
+        #cols_per_row_options = [1, 2, 3, 4]
+        #current_cols_per_row = st.session_state.super_subcat_pairs_params.get('cols_per_row', 2)
+        #selected_cols_per_row = st.selectbox("Columns per row for subcategory plots", cols_per_row_options, index=cols_per_row_options.index(current_cols_per_row) if current_cols_per_row in cols_per_row_options else 1)
+        #st.session_state.super_subcat_pairs_params['cols_per_row'] = selected_cols_per_row
         
         # y_tick_fontsize for super_subcat_pairs_params
-        y_tick_fontsize_options = [8, 10, 12, 14, 16]
-        current_y_tick_fontsize = st.session_state.super_subcat_pairs_params.get('y_tick_fontsize', 12)
-        selected_y_tick_fontsize = st.selectbox("Y-axis tick font size", y_tick_fontsize_options, index=y_tick_fontsize_options.index(current_y_tick_fontsize) if current_y_tick_fontsize in y_tick_fontsize_options else 2)
-        st.session_state.super_subcat_pairs_params['y_tick_fontsize'] = selected_y_tick_fontsize
+        #y_tick_fontsize_options = [8, 10, 12, 14, 16]
+        #current_y_tick_fontsize = st.session_state.super_subcat_pairs_params.get('y_tick_fontsize', 12)
+        #selected_y_tick_fontsize = st.selectbox("Y-axis tick font size", y_tick_fontsize_options, index=y_tick_fontsize_options.index(current_y_tick_fontsize) if current_y_tick_fontsize in y_tick_fontsize_options else 2)
+        #st.session_state.super_subcat_pairs_params['y_tick_fontsize'] = selected_y_tick_fontsize
 
   
     if st.session_state.step < 7:
@@ -946,113 +1018,57 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         # ---------------------------------------------------------------------------------------------------
         if st.session_state.page == "Group Visualizations":
 
-            # un mutated plot options
-            group_plot_unmutated_title_list = [
-                        'Numerical Non-Normal', 'Numerical Normal',
-                        'Categorical Non-Uniform', 'Categorical Uniform',
-                        'Numeric-Numeric With Correlation','Numeric-Numeric Without Correlation',
-                        'Numeric-Categoric Reject Null', 'Numeric-Categoric Fail to Reject Null',
-                        'Categoric-Categoric Reject Null','Categoric-Categoric Fail to Reject Null',
-                        'Categoric Partitioned by Another Categoric',
-                        'Assumptions Not Met - Categoric-Categoric',
-                        'Assumptions Not Met - Numeric-Numeric',
-                        'Assumptions Not Met - Numeric-Categoric',
-                        'Assumptions Not Met - Numerical',
-                        'Assumptions Not Met - Categorical'
-                        ]
-            # unprocessed pairs list returned by model (coresponds to un mutated titles)
-            var_list_of_iterable_plottable_group_header_pairs = [
-                        list(st.session_state.AD.reject_null_normal),
-                        list(st.session_state.AD.fail_to_reject_null_normal),
-                        list(st.session_state.AD.reject_null_good_of_fit),
-                        list(st.session_state.AD.fail_to_reject_null_good_of_fit),
-                        st.session_state.AD.above_threshold_corr_numnum,
-                        st.session_state.AD.below_threshold_corr_numnum,
-                        st.session_state.AD.reject_null_numcat,
-                        st.session_state.AD.fail_to_reject_null_numcat,
-                        st.session_state.AD.reject_null_catcat,
-                        st.session_state.AD.fail_to_reject_null_catcat,
-                        st.session_state.AD.supercategory_subcategory_pairs,
-                        st.session_state.AD.assumptions_not_met['catcat'],
-                        st.session_state.AD.assumptions_not_met['numnum'],
-                        st.session_state.AD.assumptions_not_met['numcat'],
-                        list(st.session_state.AD.assumptions_not_met['num']),
-                        list(st.session_state.AD.assumptions_not_met['cat']),
-                        ]
+
+
         
 
             if ( 
-                (st.session_state.valid_group_plottable_indexes is None) 
-                or
-                (st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs is None)
-                or 
-                (st.session_state.mutated_group_plotable_titles is None)
-                or
                 (st.session_state.group_plot_options is None)
                 ):
 
-                st.session_state.mutated_group_plotable_titles = group_plot_unmutated_title_list.copy()
+                # unprocessed pairs list returned by model (coresponds to un mutated titles)
+                var_list_of_iterable_plottable_group_header_pairs = [
+                            list(st.session_state.AD.reject_null_normal),
+                            list(st.session_state.AD.fail_to_reject_null_normal),
+                            list(st.session_state.AD.reject_null_good_of_fit),
+                            list(st.session_state.AD.fail_to_reject_null_good_of_fit),
+                            st.session_state.AD.above_threshold_corr_numnum,
+                            st.session_state.AD.below_threshold_corr_numnum,
+                            st.session_state.AD.reject_null_numcat,
+                            st.session_state.AD.fail_to_reject_null_numcat,
+                            st.session_state.AD.reject_null_catcat,
+                            st.session_state.AD.fail_to_reject_null_catcat,
+                            st.session_state.AD.supercategory_subcategory_pairs,
+                            st.session_state.AD.assumptions_not_met['catcat'],
+                            st.session_state.AD.assumptions_not_met['numnum'],
+                            st.session_state.AD.assumptions_not_met['numcat'],
+                            list(st.session_state.AD.assumptions_not_met['num']),
+                            list(st.session_state.AD.assumptions_not_met['cat']),
+                            ]
 
-                valid_indexes = [] 
-                plottable_pairs_list = []
-                group_plot_options = []
-                # st.session_state.group_plot_list_keys 
-                # st.session_state.group_plot_param_keys
-                for i in range(len( st.session_state.mutated_group_plotable_titles)):
-                    # fill a list with dict params to iterate over
-                    curr_plottables = []
-                    if var_list_of_iterable_plottable_group_header_pairs[i]:
-                        num_curr_pairs = len(var_list_of_iterable_plottable_group_header_pairs[i])
-                        valid_indexes.append(i)
-                        if num_curr_pairs > st.session_state.chunk_size:
-                            start = 0
-                            stop  = st.session_state.chunk_size
-                            # create an iterable list at the index position
-                            while start < num_curr_pairs:
-                                chunk = var_list_of_iterable_plottable_group_header_pairs[i][start:stop]
-                                start = stop
-                                stop = stop + st.session_state.chunk_size
-                                appendable = chunk
-                                curr_plottables.append(appendable)
-                            suffix = f": {num_curr_pairs} Plots"
-                            st.session_state.mutated_group_plotable_titles[i] += suffix
-                            group_plot_options.append({
-                                'original_index': i,
-                                'display_title': st.session_state.mutated_group_plotable_titles[i],
-                                'partitions': curr_plottables,
-                            })
-                            plottable_pairs_list.append(curr_plottables)
-                        else:
-                            # else enclose/append it in a list: [ original_list ], so it can be iterated 1 time
-                            curr_plottables.append(var_list_of_iterable_plottable_group_header_pairs[i])
-                            suffix = f": {num_curr_pairs} Plots"
-                            st.session_state.mutated_group_plotable_titles[i] += suffix
-                            group_plot_options.append({
-                                'original_index': i,
-                                'display_title': st.session_state.mutated_group_plotable_titles[i],
-                                'partitions': curr_plottables,
-                            })
-                            plottable_pairs_list.append(curr_plottables)
-                    else:
-                        # it's a placeholder
-                        plottable_pairs_list.append(curr_plottables)
-                        st.info(f"{group_plot_unmutated_title_list[i]} Not in the Data.")
-                st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs = plottable_pairs_list
-                st.session_state.valid_group_plottable_indexes = valid_indexes
-                st.session_state.group_plot_options = group_plot_options
-                st.session_state.mutated_group_plotable_titles = [i['display_title'] for i in group_plot_options]
-
-
+                (
+                    st.session_state.group_plot_options,
+                    st.session_state.mutated_group_plot_titles,
+                    not_present_titles,
+                    st.session_state.plottable_group_indexes
+                ) = chunk_plotables_mutate_titles(
+                    var_list_of_iterable_plottable_group_header_pairs,
+                    st.session_state.unmutated_title_list,
+                    st.session_state.chunk_size,
+                )
+                #if not_present_titles:
+                    #st.markdown(f"None of:")
+                    #for title in not_present_titles:
+                        #st.markdown(f"     {title}")
+                    #st.markdown("Are present in the data.")
+                
+     
             if ( 
-                (st.session_state.valid_group_plottable_indexes) 
-                and
-                (st.session_state.univar_bivar_list_of_iterable_plottable_group_header_pairs)
-                and
-                (st.session_state.mutated_group_plotable_titles)
-                and
                 (st.session_state.group_plot_options)
                 ):
-                option_titles = [i['display_title'] for i in st.session_state.group_plot_options]
+
+                # create a list of mutated titles that matches the index and is within the plot selection gate
+                option_titles = [st.session_state.mutated_group_plot_titles[i] for i in st.session_state.plottable_group_indexes]
                 if not option_titles:
                     st.session_state.curr_group_plot_selection = None
                     st.session_state.master_group_plot_index = None
@@ -1082,44 +1098,45 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                     
                 if plot_selection:
 
+                    # store curr plot selection
                     st.session_state.curr_group_plot_selection = plot_selection
-                    selected_group_option = st.session_state.group_plot_options[option_titles.index(plot_selection)]
-                    st.session_state.master_group_plot_index = selected_group_option['original_index']
 
+                    ### capture the index. titles and plots match 
+                    ### option_titles  is based on st.session_state.mutated_group_plot_titles which was created with 
+                    ### and is indexed according to st.session_state.group_plot_options
+                    st.session_state.master_group_plot_index = st.session_state.mutated_group_plot_titles.index(plot_selection)
+                    selected_group_option = st.session_state.group_plot_options[st.session_state.master_group_plot_index]
                   
-                    group_plot_params_dict = {
-                                            'num_univar_params':st.session_state.num_univar_params,
-                                            'cat_univar_params':st.session_state.cat_univar_params,
-                                            'numnum_bivar_params':st.session_state.numnum_bivar_params,
-                                            'numcat_bivar_params':st.session_state.numcat_bivar_params,
-                                            'catcat_bivar_params':st.session_state.catcat_bivar_params,
-                                            'catcat_bivar_params':st.session_state.catcat_bivar_params,
-                                            'super_subcat_pairs_params':st.session_state.super_subcat_pairs_params,
-                                            }
-              
-                    param_key = st.session_state.group_plot_param_keys[st.session_state.master_group_plot_index]
-                    iterable_variables = selected_group_option['partitions']
 
-                    # Reset only when user changes the selected plot group.
+                    # use the index to retrieve the corresponding key for plot params
+                    # note that the plotly_express plots params use underscore. 
+                    param_key = st.session_state.plot_param_keys[st.session_state.master_group_plot_index]
+                    iterable_chunks_of_variables = selected_group_option
+
+                    # st.session_state.seen resets only when user changes the selected plot group.
+                    # st.session_state.seen_for_plot_selection is used to determine if the plot group is changed
                     if st.session_state.get('seen_for_plot_selection') != plot_selection:
                         st.session_state.seen = []
                         st.session_state.seen_for_plot_selection = plot_selection
                     seen = st.session_state.setdefault('seen', [])
                     selected_partition = []
                     tabs = []
-                    if not iterable_variables:
+
+                    # plot one chunk at a time and keep track of which chunks have been plotted 
+                    if not iterable_chunks_of_variables:
                         st.info('No partitions available for the selected group.')
                     else:
                         select_wid, seen_wid = st.columns([1, 1])
                         with select_wid:
-                            partition_options = [i + 1 for i in range(len(iterable_variables))]
-                            if not partition_options:
+                            # identify each chunk as index + 1
+                            chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
+                            if not chunk_options:
                                 group_selection = None
                             else:
-                                group_selection = st.selectbox('Select a Partition to Plot', partition_options, index=0)
+                                # a number that represents a chunk. it is index = number - 1
+                                group_selection = st.selectbox('Select a Partition Chunk to Plot', chunk_options, index=0)
                         with seen_wid:
-                            st.info(f'Seen Partitions{sorted(seen)}')
-                         
+                            st.markdown(f'Seen Partitions: {sorted(seen)}')                         
 
                         if group_selection is None:
                             st.info('No selectable partition found for the selected group.')
@@ -1127,62 +1144,34 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                             if group_selection not in seen:
                                 seen.append(group_selection)
 
-                            selected_partition = iterable_variables[group_selection - 1]
+                            # select a chunk of pairs/univariates to plot
+                            selected_partition = iterable_chunks_of_variables[group_selection - 1]
 
                             def _tab_title(variable_to_plot):
                                 if isinstance(variable_to_plot, (list, tuple)):
-                                    return ' & '.join([str(v) for v in variable_to_plot])
+                                    return ' | '.join([str(v) for v in variable_to_plot])
                                 return str(variable_to_plot)
 
                             tab_titles = [_tab_title(v) for v in selected_partition]
                             tabs = st.tabs(tab_titles) if tab_titles else []
 
+
                     for tab, variable_to_plot in zip(tabs, selected_partition):
                         with tab:
-                            curr_params = group_plot_params_dict[param_key].copy()
-                            # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
-                            var_type_plot = st.session_state.group_plot_list_keys[st.session_state.master_group_plot_index]
-                            plotly_express = True
-                            if var_type_plot in ('num_univar', 'cat_univar'):
-                                par = {'x': variable_to_plot}
-                                curr_params.update(par)
-                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **curr_params)
-                            elif var_type_plot in ('numnum_bivar', 'numcat_bivar'):
-                                par = {'x': variable_to_plot[1], 'y': variable_to_plot[0]}
-                                curr_params.update(par)
-                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **curr_params)
-                            elif var_type_plot in ('catcat_bivar'):
-                                plot_func, par = st.session_state.plot_function[st.session_state.master_group_plot_index](variable_to_plot[0], variable_to_plot[1])
-                                curr_params.update(par)
-                                fig = plot_func(data_frame = st.session_state.data, **curr_params)
-                            elif var_type_plot in ('super_subcat_pairs'):
-                                par = {'super_subcat_pairs': [variable_to_plot],
-                                        'cat_univar':False,   
-                                        'num_univar':False, 
-                                        'catcat_bivar':False,
-                                        'numnum_bivar':False,
-                                        'numcat_bivar':False}
-                                plot_params = {'super_subcat_pairs_params': curr_params ,'streamlit_':True}
-                                plot_params.update(par)
-                                plotly_express = False  # set to false because unlike the plotly.express functions, this renders the figure without needing to call st.write(fig)
-                                fig = st.session_state.plot_function[st.session_state.master_group_plot_index](st.session_state.data, **plot_params)
-                            else:
-                                fig = None
-                            # to catch plots where functions display figures internally
-                            if (plotly_express):
-                                if fig is None:
-                                    st.warning('No figure generated for this tab.')
-                                elif hasattr(fig, 'to_plotly_json'):
-                                    st.plotly_chart(fig, use_container_width=True)
-                                elif isinstance(fig, tuple) and fig and hasattr(fig[0], 'savefig'):
-                                    st.pyplot(fig[0], use_container_width=True)
-                                elif hasattr(fig, 'savefig'):
-                                    st.pyplot(fig, use_container_width=True)
-                                elif hasattr(fig, 'figure') and hasattr(fig.figure, 'savefig'):
-                                    st.pyplot(fig.figure, use_container_width=True)
-                                else:
-                                    st.write(fig)
-                        
+                           # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
+                            var_type_plot = st.session_state.plot_list_keys[st.session_state.master_group_plot_index]
+                            #retrieve the appropriate plot function
+                            plot_func_ = st.session_state.plot_function[st.session_state.master_group_plot_index]
+                            # retrieve the plot parameters
+                            curr_params = st.session_state.plot_params_dict[param_key].copy()
+                            # process and plot one plot for each iteration in the chunk
+                            plot_one_title(
+                                    data = st.session_state.data,
+                                    variable_to_plot=variable_to_plot,
+                                    curr_params=curr_params,  
+                                    var_type_plot=var_type_plot,
+                                    plot_func_=plot_func_)
+                            
 
 
 
@@ -1205,33 +1194,207 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
             if variable_selection:
         
+                if st.session_state.curr_target_selection != variable_selection:
+
+                    st.session_state.target_plot_options = None
+
+                    st.session_state.curr_target_selection = variable_selection
+
+                    meta       = st.session_state.AD.target_key_feature_meta_vals[variable_selection]
+                    is_numeric = meta['target_dtype']=='numeric'
+
+                    def targ_first(list_of_variables):
+                        return [[variable_selection, feat] for feat in list_of_variables]
+                    def targ_second(list_of_variables):
+                        return [[feat, variable_selection] for feat in list_of_variables]
+                    
+                    
+                    st.session_state.curr_target_plot_lists = [
+
+                        #'Numerical Non-Normal'
+                        [variable_selection] if  is_numeric  and meta['is_normal_or_uniform']=='reject_normal'  else [],
+
+                        #'Numerical Normal'
+                        [variable_selection] if  is_numeric and meta['is_normal_or_uniform']=='fail_to_reject_normal' else [],
+
+                        #'Categorical Non-Uniform'
+                        [variable_selection] if not is_numeric and meta['is_normal_or_uniform']=='reject_uniform' else [],
+                         
+                        #'Categorical Uniform'
+                        [variable_selection] if not is_numeric and meta['is_normal_or_uniform']=='fail_to_reject_uniform' else [],
+                         
+                        #'Numeric-Numeric With Correlation'
+                        [] if not is_numeric else targ_first(meta['significant_numeric_relationships']),
+                        
+                        #'Numeric-Numeric Without Correlation'
+                        [] if not is_numeric else targ_first(meta['not_significant_numerics']),
+                        
+                        #'Numeric-Categoric Reject Null'
+                        targ_first(meta['significant_categoric_relationships']) if is_numeric else targ_second(meta['significant_numeric_relationships']),
+
+                        #'Numeric-Categoric Fail to Reject Null'
+                        targ_first(meta['not_significant_categorics']) if is_numeric else targ_second(meta['not_significant_numerics']),
+
+                        #'Categoric-Categoric Reject Null'
+                        [] if is_numeric else targ_first(meta['significant_categoric_relationships']),
+
+                        #'Categoric-Categoric Fail to Reject Null'
+                        [] if is_numeric else targ_first(meta['not_significant_categorics']),
+
+                        #'Categoric Partitioned by Another Categoric'
+                        targ_second(meta['paired_to_a_supercategory'])+targ_first(meta['paired_to_a_subcategory']),
+                        
+                        #'Assumptions Not Met - Categoric-Categoric'
+                        [] if is_numeric else targ_first(list(meta['assumptions_not_met']['catcat'])),
+
+                        # 'Assumptions Not Met - Numeric-Numeric'
+                        [] if not is_numeric else targ_first(list(meta['assumptions_not_met']['numnum'])),
+
+                        #'Assumptions Not Met - Numeric-Categoric'
+                        targ_first(list(meta['assumptions_not_met']['numcat'])) if is_numeric else targ_second(list(meta['assumptions_not_met']['numcat'])),
+
+                        #'Assumptions Not Met - Numerical'
+                        [] if not is_numeric else [feat for feat in list(meta['assumptions_not_met']['num'])],
+
+                        #'Assumptions Not Met - Categorical'
+                        [] if is_numeric else [feat for feat in list(meta['assumptions_not_met']['cat'])],
+                    ]
+            
+                if st.session_state.curr_target_selection == variable_selection:
+
+                    if (
+                        (not st.session_state.target_plot_options)
+                    ):
+                        (
+                            st.session_state.target_plot_options,
+                            st.session_state.mutated_target_plot_titles,
+                            not_present_titles,
+                            st.session_state.plottable_target_indexes
+                        ) = chunk_plotables_mutate_titles(
+                            st.session_state.curr_target_plot_lists,
+                            st.session_state.unmutated_title_list,
+                            st.session_state.chunk_size,
+                        )
+                        #if not_present_titles:
+                            #st.markdown(f"None of:")
+                            #for title in not_present_titles:
+                                #st.markdown(f"     {title}")
+                            #st.markdown("Are present in the data.")
+                    
+            
+                    if ( 
+                        (st.session_state.target_plot_options)
+                        ):
+
+                        # create a list of mutated titles that matches the index and is within the plot selection gate
+                        option_titles = [st.session_state.mutated_target_plot_titles[i] for i in st.session_state.plottable_target_indexes]
+                        if not option_titles:
+                            st.session_state.curr_target_plot_selection = None
+                            st.session_state.master_target_plot_index = None
+                            st.session_state.seen_tar = []
+                            st.session_state.seen_tar_for_plot_selection = None
+                            st.info("No plottable targets found for the current dataset/settings.")
+                            plot_selection = None
+                        else:
+                            if st.session_state.curr_target_plot_selection not in option_titles:
+                                st.session_state.curr_target_plot_selection = None
+                                st.session_state.master_target_plot_index = None
+                                st.session_state.seen_tar = []
+                                st.session_state.seen_tar_for_plot_selection = None
+
+                            defa = option_titles.index(st.session_state.curr_target_plot_selection) if st.session_state.curr_target_plot_selection else None
+                        try:
+                            # default selection
+                            plot_selection = st.segment_control("Select a Group to Plot", 
+                                                            option_titles,
+                                                            selection_mode="single",
+                                                            default=defa)
+                        except:
+                            # default selection
+                            plot_selection = st.selectbox("Select a Group to Plot", 
+                                                            option_titles,
+                                                            index=defa)
+                            
+                        if plot_selection:
+
+                            # store curr plot selection
+                            st.session_state.curr_target_plot_selection = plot_selection
+
+                            ### capture the index. titles and plots match 
+                            ### option_titles  is based on st.session_state.mutated_target_plot_titles which was created with 
+                            ### and is indexed according to st.session_state.target_plot_options
+                            st.session_state.master_target_plot_index = st.session_state.mutated_target_plot_titles.index(plot_selection)
+                            selected_target_option = st.session_state.target_plot_options[st.session_state.master_target_plot_index]
+                        
+
+                            # use the index to retrieve the corresponding key for plot params
+                            # note that the plotly_express plots params use underscore. 
+                            param_key = st.session_state.plot_param_keys[st.session_state.master_target_plot_index]
+                            iterable_chunks_of_variables = selected_target_option
+
+                            # st.session_state.seen_tar resets only when user changes the selected plot group.
+                            # st.session_state.seen_tar_for_plot_selection is used to determine if the plot group is changed
+                            if st.session_state.get('seen_tar_for_plot_selection') != plot_selection:
+                                st.session_state.seen_tar = []
+                                st.session_state.seen_tar_for_plot_selection = plot_selection
+                            seen = st.session_state.setdefault('seen_tar', [])
+                            selected_partition = []
+                            tabs = []
+
+                            # plot one chunk at a time and keep track of which chunks have been plotted 
+                            if not iterable_chunks_of_variables:
+                                st.info('No partitions available for the selected group.')
+                            else:
+                                select_wid, seen_wid = st.columns([1, 1])
+                                with select_wid:
+                                    # identify each chunk as index + 1
+                                    chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
+                                    if not chunk_options:
+                                        group_selection = None
+                                    else:
+                                        # a number that represents a chunk. it is index = number - 1
+                                        group_selection = st.selectbox('Select a Partition Chunk to Plot', chunk_options, index=0)
+                                with seen_wid:
+                                    st.markdown(f'Seen Partitions: {sorted(seen)}')                         
+
+                                if group_selection is None:
+                                    st.info('No selectable partition found for the selected group.')
+                                else:
+                                    if group_selection not in seen:
+                                        seen.append(group_selection)
+
+                                    # select a chunk of pairs/univariates to plot
+                                    selected_partition = iterable_chunks_of_variables[group_selection - 1]
+
+                                    def _tab_title(variable_to_plot):
+                                        if isinstance(variable_to_plot, (list, tuple)):
+                                            return ' | '.join([str(v) for v in variable_to_plot])
+                                        return str(variable_to_plot)
+
+                                    tab_titles = [_tab_title(v) for v in selected_partition]
+                                    tabs = st.tabs(tab_titles) if tab_titles else []
 
 
-                    target_plot_default_params = {    
-                                                    'reject_numcat': True,  
-                                                    'reject_numnum': True,
-                                                    'reject_catcat': True,
-                                                    'is_super_or_subcat': False,
-                                                    'not_uniform_or_reject_normal': True,  
-                                                    'reject_multivariates': False,        
-                                                    'auto_fit': True,   
-                                                    'targets_share_plots': False,  
-                                                    'check_assumptions': True,
-                                                    'dropna_gof': True,
-                                                    'cat_univar_params':    st.session_state.catunivarparams,
-                                                    'catcat_bivar_params':  st.session_state.catcatbivarparams,
-                                                    'numnum_bivar_params':  st.session_state.numnumbivarparams,
-                                                    'numcat_bivar_params':  st.session_state.numcatbivarparams,
-                                                    'super_subcat_pairs_params':  st.session_state.supersubcatpairsparams,
-                                                    'num_univar_params':  st.session_state.numunivarparams
-                                                    }
+                            for tab, variable_to_plot in zip(tabs, selected_partition):
+                                with tab:
+                                # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
+                                    var_type_plot = st.session_state.plot_list_keys[st.session_state.master_target_plot_index]
+                                    #retrieve the appropriate plot function
+                                    plot_func_ = st.session_state.plot_function[st.session_state.master_target_plot_index]
+                                    # retrieve the plot parameters
+                                    curr_params = st.session_state.plot_params_dict[param_key].copy()
+                                    # process and plot one plot for each iteration in the chunk
+                                    plot_one_title(
+                                            data = st.session_state.data,
+                                            variable_to_plot=variable_to_plot,
+                                            curr_params=curr_params,  
+                                            var_type_plot=var_type_plot,
+                                            plot_func_=plot_func_)
+                                    
 
-  
-                    st.session_state.AD.visualize_by_targets(
-                                            data=st.session_state.data,
-                                            targets = variable_selection,
-                                            **target_plot_default_params ,
-                                             streamlit_=True )
+
+
+
 
 #----------------------------------------------------------------------------------------------------------------------
 elif st.session_state.page == "Feedback":
