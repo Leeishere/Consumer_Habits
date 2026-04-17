@@ -543,7 +543,7 @@ if st.session_state.page == "Data Upload & Processing":
                             native_date_cols.append(col)
                             proposed_dtype = 'datetime'
                         # Try to detect dates/datetimes
-                        elif str(col_dtype) in ('object','category') or str(col_dtype).startwith('str'):
+                        elif str(col_dtype) in ('object','category') or str(col_dtype).startswith('str'):
                             test_as_dt = pd.to_datetime(st.session_state.data[col].copy(), errors='coerce').notna().sum()
 
                             # if st.session_state.min_pct_non_null_to_propose_a_dtype% convert to datetime it can be datetime
