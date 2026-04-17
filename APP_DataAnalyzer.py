@@ -954,6 +954,7 @@ if st.session_state.page == "Data Upload & Processing":
         fit = st.button("Fit the Data")
 
         if fit:
+            st.caption("Fitting the Data Now. Please Wait.")
             st.session_state.AD = AnalyzeDataset(multivariate_params = st.session_state.multivariate_params,
                                                     kruskal_assumption_check_params=st.session_state.kruskal_assumption_check_params,
                                                     anova_assumption_check_params = st.session_state.anova_assumption_check_params,
