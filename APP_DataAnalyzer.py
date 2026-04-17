@@ -533,6 +533,9 @@ if st.session_state.page == "Data Upload & Processing":
                     for col in st.session_state.data.columns:
                         proposed_dtype = None
                         col_dtype      = st.session_state.data[col].dtype
+                        if str(col_dtype).startswith('str'):
+                            st.session_state.data[col]=st.session_state.data[col].astype('category')
+                            col_dtype      = st.session_state.data[col].dtype
                         niq            = st.session_state.data[col].nunique()
                         nan            = st.session_state.data[col].isna().sum()
                         n_non_nan_rows = n_rows - nan
@@ -543,7 +546,7 @@ if st.session_state.page == "Data Upload & Processing":
                             native_date_cols.append(col)
                             proposed_dtype = 'datetime'
                         # Try to detect dates/datetimes
-                        elif str(col_dtype) in ('object','category') or str(col_dtype).startswith('str'):
+                        elif str(col_dtype) in ('object','category'):
                             test_as_dt = pd.to_datetime(st.session_state.data[col].copy(), errors='coerce').notna().sum()
 
                             # if st.session_state.min_pct_non_null_to_propose_a_dtype% convert to datetime it can be datetime
