@@ -278,6 +278,16 @@ if 'curr_target_plot_lists' not in st.session_state:
 def set_page():
     st.session_state.page = st.session_state.navigation_control
 
+if 'group_plot_selection' not in st.session_state:
+    st.session_state.group_plot_selection = None
+def group_plot():
+    st.session_state.group_plot_selection = st.session_state.group_plot_control
+
+if 'target_plot_selection' not in st.session_state:
+    st.session_state.target_plot_selection = None
+def target_plot():
+    st.session_state.target_plot_selection = st.session_state.target_plot_control
+
 # functions
 # =======================================================================================================================================
 # =======================================================================================================================================  
@@ -513,7 +523,7 @@ if st.session_state.page == "Data Upload & Processing":
                     # DROPNA NOT REQUIRED. MODULE WILL HANDLE NAN INTERNALLY
                     #st.session_state.data = st.session_state.data.dropna()
 
-                    new_len = len(st.session_state.data)
+                    n_rows = len(st.session_state.data)
 
                     # store cols and meta
                     cols_and_meta = {}
@@ -522,9 +532,10 @@ if st.session_state.page == "Data Upload & Processing":
                     native_date_cols = []
                     for col in st.session_state.data.columns:
                         proposed_dtype = None
-                        col_dtype = st.session_state.data[col].dtype
-                        niq = st.session_state.data[col].nunique()
-                        nan = st.session_state.data[col].isna().sum()
+                        col_dtype      = st.session_state.data[col].dtype
+                        niq            = st.session_state.data[col].nunique()
+                        nan            = st.session_state.data[col].isna().sum()
+                        n_non_nan_rows = n_rows - nan
 
                     
                         if str(col_dtype).startswith('datetime') or str(col_dtype).startswith('timedelta'):
@@ -536,7 +547,7 @@ if st.session_state.page == "Data Upload & Processing":
                             test_as_dt = pd.to_datetime(st.session_state.data[col].copy(), errors='coerce').notna().sum()
 
                             # if st.session_state.min_pct_non_null_to_propose_a_dtype% convert to datetime it can be datetime
-                            if (test_as_dt >= (st.session_state.min_pct_non_null_to_propose_a_dtype * new_len)):
+                            if (test_as_dt >= (st.session_state.min_pct_non_null_to_propose_a_dtype * n_non_nan_rows)):
                                 date_columns.append(col)
                                 proposed_dtype = 'datetime'
 
@@ -545,7 +556,7 @@ if st.session_state.page == "Data Upload & Processing":
                                 test_as_num = pd.to_numeric(st.session_state.data[col].copy(), errors='coerce').notna().sum()
 
                                 # if >st.session_state.min_pct_non_null_to_propose_a_dtype% are valid values and over st.session_state.max_pct_unique_for_numtype_cattype_threshold are unique, it can be int or float
-                                if (test_as_num>(new_len*st.session_state.min_pct_non_null_to_propose_a_dtype)) and (niq>(new_len*st.session_state.max_pct_unique_for_numtype_cattype_threshold)):
+                                if (test_as_num>(n_non_nan_rows*st.session_state.min_pct_non_null_to_propose_a_dtype)) and (niq>(n_non_nan_rows*st.session_state.max_pct_unique_for_numtype_cattype_threshold)):
                                     if (pd.to_numeric(st.session_state.data[col].copy(), errors='coerce').dropna() % 1 != 0).any():
                                         proposed_dtype = 'float64'
                                     else:
@@ -555,7 +566,7 @@ if st.session_state.page == "Data Upload & Processing":
 
                         elif str(col_dtype).startswith('int') or str(col_dtype).startswith('float') or str(col_dtype).startswith('UInt'):
                             # if not over st.session_state.max_pct_unique_for_numtype_cattype_threshold are unique, it will be categoric
-                            if (niq>(new_len*st.session_state.max_pct_unique_for_numtype_cattype_threshold)):
+                            if (niq>(n_non_nan_rows*st.session_state.max_pct_unique_for_numtype_cattype_threshold)):
                                 if (st.session_state.data[col].dropna() % 1 != 0).any():
                                     proposed_dtype = 'float64'
                                 else:
@@ -568,7 +579,8 @@ if st.session_state.page == "Data Upload & Processing":
                                             niq,
                                             False,
                                             nan,
-                                            False]
+                                            False,
+                                            n_non_nan_rows]
 
                     index = [
                             'original_dtype', 
@@ -576,7 +588,8 @@ if st.session_state.page == "Data Upload & Processing":
                             'n_unique', 
                             'accept_change', 
                             'n_nan', 
-                            'drop'
+                            'drop',
+                            'non_nan_observations'
                             ]
                     st.session_state.datatypes_df               = pd.DataFrame(cols_and_meta, index=index)
 
@@ -587,7 +600,7 @@ if st.session_state.page == "Data Upload & Processing":
 
 
                     # Restore detection results from session state on reruns
-                    new_len                     = len(st.session_state.data)
+                    n_rows                     = len(st.session_state.data)
 
 
                     # display datatypes as df
@@ -601,7 +614,7 @@ if st.session_state.page == "Data Upload & Processing":
                                                 |
                                                 ( (st.session_state.indexed_col_meta_df['n_unique']==1) 
                                                 &
-                                                (st.session_state.indexed_col_meta_df['n_nan']>(new_len*st.session_state.max_frac_droppable_nan_cat)))
+                                                (st.session_state.indexed_col_meta_df['n_nan']>(n_rows*st.session_state.max_frac_droppable_nan_cat)))
                                                 )
                     
                     auto_drop                   = st.session_state.indexed_col_meta_df.loc[~id_mask].index  
@@ -619,9 +632,9 @@ if st.session_state.page == "Data Upload & Processing":
                     #              TOO MANY NAN, 
                     #              TOO FEW UNIQUE
                     # pct nunique/df size
-                    st.session_state.indexed_col_meta_df['pct_unique']    = st.session_state.indexed_col_meta_df['n_unique']/new_len
+                    st.session_state.indexed_col_meta_df['pct_unique_of_non_nan']    = st.session_state.indexed_col_meta_df['n_unique']/st.session_state.indexed_col_meta_df['non_nan_observations']
                     # pct nan
-                    st.session_state.indexed_col_meta_df['pct_nan']       = st.session_state.indexed_col_meta_df['n_nan']/new_len
+                    st.session_state.indexed_col_meta_df['pct_nan']       = st.session_state.indexed_col_meta_df['n_nan']/n_rows
                     # proposed and existing are both cat | both number
                     id_orig_str                     = st.session_state.indexed_col_meta_df['original_dtype'].copy().astype(str)
                     id_poss_str                     = st.session_state.indexed_col_meta_df['possible_change'].copy().astype(str)
@@ -651,7 +664,7 @@ if st.session_state.page == "Data Upload & Processing":
 
                     # APPLY CHECK(S) FOR EACH
                     # threshold checks  
-                    over_unique_id_threshold       = st.session_state.indexed_col_meta_df['pct_unique'] > st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID
+                    over_unique_id_threshold       = st.session_state.indexed_col_meta_df['pct_unique_of_non_nan'] > st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID
                     excessiv_nan_for_numeric       = st.session_state.indexed_col_meta_df['pct_nan']    > st.session_state.propose_drop_frac_nan_for_num         
                     # capture it now before rows are dropped and dtypes changed etcetera
                     st.session_state.indexed_col_meta_df['nan_to_NAN_if_cat']    = st.session_state.indexed_col_meta_df['pct_nan']    > st.session_state.max_frac_droppable_nan_cat
@@ -662,8 +675,8 @@ if st.session_state.page == "Data Upload & Processing":
                     st.subheader('Data Manipulation')
                     st.markdown(f"Threshold 'pct_nan' to drop a column - %{round(100*st.session_state.propose_drop_frac_nan_for_num,2)}")
                     st.markdown(f"Threshold 'pct_nan' to convert NaN to string: 'NAN' - %{round(100*st.session_state.max_frac_droppable_nan_cat,2)}")
-                    st.markdown(f"Threshold 'pct_unique' to drop an identifier column - %{round(100*st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID,2)}")
-                    st.markdown(f"Threshold 'pct_unique' to consider a type change - %{round(100*st.session_state.max_pct_unique_for_numtype_cattype_threshold,3)}")
+                    st.markdown(f"Threshold 'pct_unique_of_non_nan' to drop an identifier column - %{round(100*st.session_state.max_unique_pct_of_total_ie_identifier_variable_ID,2)}")
+                    st.markdown(f"Threshold 'pct_unique_of_non_nan' to consider a type change - %{round(100*st.session_state.max_pct_unique_for_numtype_cattype_threshold,3)}")
 
 
                     # use np.select  to fill drop and cat choices
@@ -700,10 +713,11 @@ if st.session_state.page == "Data Upload & Processing":
                                                         st.session_state.not_the_same |
                                                         st.session_state.indexed_col_meta_df['drop'].copy() |
                                                         st.session_state.indexed_col_meta_df['make_change'].copy() |
-                                                        (st.session_state.indexed_col_meta_df['pct_unique']>.8)
+                                                        (st.session_state.indexed_col_meta_df['pct_unique_of_non_nan']>.8)
                                                         )][['original_dtype', 'possible_change', 
-                                                            'n_unique','pct_unique',  
-                                                            'n_nan','pct_nan', 'make_change', 'drop']]
+                                                            'make_change', 'drop', 
+                                                            'pct_unique_of_non_nan','pct_nan', 
+                                                            'n_unique','n_nan']]
                                                         .sort_values(by=['make_change','drop'],ascending=False))
 
 
@@ -803,128 +817,128 @@ if st.session_state.page == "Data Upload & Processing":
 
                         if not st.session_state.early_stop:
                             st.rerun()
-                    #st.rerun('fragment')
                         
                         
 
-                if st.session_state.step == 5:
+                if st.session_state.step == 5:                        
 
-         
-                    # DATES
-                    
-                    st.header("Part Dates\nEg: 'Year', 'Quarter', 'Month', ...\nOr Drop Dates")
-                    # side by side buttons
-                    procede_w_date_col_left,   drop_dates_col_right   =   st.columns([1,2])
+                    # capture date type cols
+                    is_date = (
+                                (   st.session_state.indexed_col_meta_df['dtype_as_string'].str.startswith('date')    ) 
+                                | 
+                                (   st.session_state.indexed_col_meta_df['dtype_as_string'].str.startswith('time')   )
+                                )
+                    date_columns = list(st.session_state.indexed_col_meta_df.loc[is_date].index)
 
-                    # buttons to choose to 'part' dates or drop them
-                    procede_w_date,     drop_dates   = None, None
-                    if (not procede_w_date) and (not drop_dates):
-                        st.info(f"If 'Part Dates' is selected, a max of {st.session_state.max_date_cols_used} will be automatically chosen.")
-                    with procede_w_date_col_left:
-                        procede_w_date = st.button("Part Dates")
-                    with drop_dates_col_right:
-                        drop_dates = st.button("Drop Dates")
+                    if date_columns:
+                        # DATES
+                        
+                        st.header("Part Dates\nEg: 'Year', 'Quarter', 'Month', ...\nOr Drop Dates")
+                        # side by side buttons
+                        procede_w_date_col_left,   drop_dates_col_right   =   st.columns([1,2])
 
-                    # if either button is pressed
-                    if procede_w_date or drop_dates:
-                        # capture date type cols
-                        is_date = (
-                                    (   st.session_state.indexed_col_meta_df['dtype_as_string'].str.startswith('date')    ) 
-                                    | 
-                                    (   st.session_state.indexed_col_meta_df['dtype_as_string'].str.startswith('time')   )
-                                    )
-                        date_columns = list(st.session_state.indexed_col_meta_df.loc[is_date].index)
-
-                        # drop w/o processing
-                        if drop_dates:
-                            st.session_state.indexed_col_meta_df = st.session_state.indexed_col_meta_df.drop(index=date_columns)
-                            st.session_state.data                = st.session_state.data.drop(columns=date_columns)
-                        # or process then drop
-                        elif procede_w_date:      
-
-                            # Limit number of additional columns with st.session_state.max_date_cols_used = None date columns
-                            cols_to_drop = []
-                            if len(date_columns) > st.session_state.max_date_cols_used:
-                                # Keep first 2, drop others
-                                cols_to_drop = date_columns[st.session_state.max_date_cols_used:]
-                                date_columns = date_columns[:st.session_state.max_date_cols_used]
-
-                            # extract useful info from date/datetime columns
-                            
-                            # Create categorical variables from dates
-                            for col in date_columns:
-                                curr_cols = set(st.session_state.data.columns)
-                                try:
-                                    new_title = f'{col}_year'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = st.session_state.data[col].dt.year.astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-                                try:
-                                    new_title = f'{col}_quarter'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = st.session_state.data[col].dt.quarter.astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-                                try:
-                                    new_title = f'{col}_month'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = st.session_state.data[col].dt.month.astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-                                try:
-                                    new_title = f'{col}_day'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = st.session_state.data[col].dt.day.astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-                                try:
-                                    new_title = f'{col}_hour'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = st.session_state.data[col].dt.hour.astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-                                try:
-                                    new_title = f'{col}_30min'
-                                    if new_title in curr_cols:
-                                        new_title=new_title+'_i'
-                                    while new_title in curr_cols:
-                                        new_title = new_title + "i"
-                                    st.session_state.data[new_title] = (st.session_state.data[col].dt.minute // 30).astype('category')
-                                    if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
-                                except:
-                                    pass
-
-
-                            # Drop original date columns (full date/datetime only, not extracted parts like year/month/day)
-                            date_columns = date_columns + cols_to_drop
-                            if date_columns:
-                                st.session_state.data = st.session_state.data.drop(columns=date_columns,errors='ignore')
-                                if len(st.session_state.data.shape)<2:
-                                    st.session_state.data = st.session_state.data.to_frame()
-                                
+                        # buttons to choose to 'part' dates or drop them
+                        procede_w_date,     drop_dates   = None, None
+                        if (not procede_w_date) and (not drop_dates):
+                            st.info(f"If 'Part Dates' is selected, a max of {st.session_state.max_date_cols_used} will be automatically chosen.")
+                        with procede_w_date_col_left:
+                            procede_w_date = st.button("Part Dates")
+                        with drop_dates_col_right:
+                            drop_dates = st.button("Drop Dates")
+                        # if either button is pressed
+                        if procede_w_date or drop_dates:
+                            # drop w/o processing
+                            if drop_dates:
                                 st.session_state.indexed_col_meta_df = st.session_state.indexed_col_meta_df.drop(index=date_columns)
+                                st.session_state.data                = st.session_state.data.drop(columns=date_columns)
+                            # or process then drop
+                            elif procede_w_date:      
 
+                                # Limit number of additional columns with st.session_state.max_date_cols_used = None date columns
+                                cols_to_drop = []
+                                if len(date_columns) > st.session_state.max_date_cols_used:
+                                    # Keep first 2, drop others
+                                    cols_to_drop = date_columns[st.session_state.max_date_cols_used:]
+                                    date_columns = date_columns[:st.session_state.max_date_cols_used]
+
+                                # extract useful info from date/datetime columns
+                                
+                                # Create categorical variables from dates
+                                for col in date_columns:
+                                    curr_cols = set(st.session_state.data.columns)
+                                    try:
+                                        new_title = f'{col}_year'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = st.session_state.data[col].dt.year.astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+                                    try:
+                                        new_title = f'{col}_quarter'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = st.session_state.data[col].dt.quarter.astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+                                    try:
+                                        new_title = f'{col}_month'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = st.session_state.data[col].dt.month.astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+                                    try:
+                                        new_title = f'{col}_day'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = st.session_state.data[col].dt.day.astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+                                    try:
+                                        new_title = f'{col}_hour'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = st.session_state.data[col].dt.hour.astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+                                    try:
+                                        new_title = f'{col}_30min'
+                                        if new_title in curr_cols:
+                                            new_title=new_title+'_i'
+                                        while new_title in curr_cols:
+                                            new_title = new_title + "i"
+                                        st.session_state.data[new_title] = (st.session_state.data[col].dt.minute // 30).astype('category')
+                                        if st.session_state.data[new_title].nunique()<=1: st.session_state.data = st.session_state.data.drop(columns=new_title)
+                                    except:
+                                        pass
+
+
+                                # Drop original date columns (full date/datetime only, not extracted parts like year/month/day)
+                                date_columns = date_columns + cols_to_drop
+                                if date_columns:
+                                    st.session_state.data = st.session_state.data.drop(columns=date_columns,errors='ignore')
+                                    if len(st.session_state.data.shape)<2:
+                                        st.session_state.data = st.session_state.data.to_frame()
+                                    
+                                    st.session_state.indexed_col_meta_df = st.session_state.indexed_col_meta_df.drop(index=date_columns)
+                        st.session_state.step = 6
+                        st.rerun()
+                    else:
                         st.session_state.step = 6
                         st.rerun()
 
@@ -1115,25 +1129,28 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                     defa = option_titles.index(st.session_state.curr_group_plot_selection) if st.session_state.curr_group_plot_selection else None
                 try:
                     # default selection
-                    plot_selection = st.segment_control("Select a Group to Plot", 
+                    st.session_state.group_plot_selection = st.segment_control("Select a Group to Plot", 
                                                     option_titles,
                                                     selection_mode="single",
-                                                    default=defa)
+                                                    default=defa,
+                                                    on_change = group_plot,
+                                                    key = 'group_plot_control')
                 except:
                     # default selection
-                    plot_selection = st.selectbox("Select a Group to Plot", 
+                    st.session_state.group_plot_selection = st.selectbox("Select a Group to Plot", 
                                                     option_titles,
-                                                    index=defa)
-                    
-                if plot_selection:
-
-                    # store curr plot selection
-                    st.session_state.curr_group_plot_selection = plot_selection
+                                                    index=defa,
+                                                    on_change = group_plot,
+                                                    key = 'group_plot_control')
+                
+                # Update session state immediately after widget renders to keep defa
+                if st.session_state.group_plot_selection != st.session_state.curr_group_plot_selection:
+                    st.session_state.curr_group_plot_selection = st.session_state.group_plot_selection
 
                     ### capture the index. titles and plots match 
                     ### option_titles  is based on st.session_state.mutated_group_plot_titles which was created with 
                     ### and is indexed according to st.session_state.group_plot_options
-                    st.session_state.master_group_plot_index = st.session_state.mutated_group_plot_titles.index(plot_selection)
+                    st.session_state.master_group_plot_index = st.session_state.mutated_group_plot_titles.index(st.session_state.group_plot_selection)
                     selected_group_option = st.session_state.group_plot_options[st.session_state.master_group_plot_index]
                   
 
@@ -1144,9 +1161,9 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
                     # st.session_state.seen resets only when user changes the selected plot group.
                     # st.session_state.seen_for_plot_selection is used to determine if the plot group is changed
-                    if st.session_state.get('seen_for_plot_selection') != plot_selection:
+                    if st.session_state.get('seen_for_plot_selection') != st.session_state.group_plot_selection:
                         st.session_state.seen = []
-                        st.session_state.seen_for_plot_selection = plot_selection
+                        st.session_state.seen_for_plot_selection = st.session_state.group_plot_selection
                     seen = st.session_state.setdefault('seen', [])
                     selected_partition = []
                     tabs = []
@@ -1334,25 +1351,28 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                             defa = option_titles.index(st.session_state.curr_target_plot_selection) if st.session_state.curr_target_plot_selection else None
                         try:
                             # default selection
-                            plot_selection = st.segment_control("Select a Group to Plot", 
+                            st.session_state.target_plot_selection = st.segment_control("Select a Group to Plot", 
                                                             option_titles,
-                                                            selection_mode="single",
-                                                            default=defa)
+                                                            selection_mode = "single",
+                                                            default = defa,
+                                                            key = 'target_plot_control',
+                                                            on_change =target_plot)
                         except:
                             # default selection
-                            plot_selection = st.selectbox("Select a Group to Plot", 
+                            st.session_state.target_plot_selection = st.selectbox("Select a Group to Plot", 
                                                             option_titles,
-                                                            index=defa)
-                            
-                        if plot_selection:
-
-                            # store curr plot selection
-                            st.session_state.curr_target_plot_selection = plot_selection
+                                                            index = defa,
+                                                            key = 'target_plot_control',
+                                                            on_change = target_plot)
+                        
+                        # Update session state immediately after widget renders to keep defa on reruns
+                        if st.session_state.target_plot_selection != st.session_state.curr_target_plot_selection:
+                            st.session_state.curr_target_plot_selection = st.session_state.target_plot_selection
 
                             ### capture the index. titles and plots match 
                             ### option_titles  is based on st.session_state.mutated_target_plot_titles which was created with 
                             ### and is indexed according to st.session_state.target_plot_options
-                            st.session_state.master_target_plot_index = st.session_state.mutated_target_plot_titles.index(plot_selection)
+                            st.session_state.master_target_plot_index = st.session_state.mutated_target_plot_titles.index(st.session_state.target_plot_selection)
                             selected_target_option = st.session_state.target_plot_options[st.session_state.master_target_plot_index]
                         
 
@@ -1363,9 +1383,9 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
                             # st.session_state.seen_tar resets only when user changes the selected plot group.
                             # st.session_state.seen_tar_for_plot_selection is used to determine if the plot group is changed
-                            if st.session_state.get('seen_tar_for_plot_selection') != plot_selection:
+                            if st.session_state.get('seen_tar_for_plot_selection') != st.session_state.target_plot_selection:
                                 st.session_state.seen_tar = []
-                                st.session_state.seen_tar_for_plot_selection = plot_selection
+                                st.session_state.seen_tar_for_plot_selection = st.session_state.target_plot_selection
                             seen = st.session_state.setdefault('seen_tar', [])
                             selected_partition = []
                             tabs = []
