@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pathlib
 import streamlit as st
 import plotly.express as px
 
@@ -123,6 +124,12 @@ if 'early_stop' not in st.session_state:
 
 if 'step' not in st.session_state:
     st.session_state.step = 1
+
+if 'use_default_dataset' not in st.session_state:
+    st.session_state.use_default_dataset = False
+
+if 'default_filepath' not in st.session_state:
+    st.session_state.default_filepath = pathlib.Path('utils') / 'shopping_behavior_updated.csv'
 
 # PLOT PARAMS
 # =======================================================================================================================================
@@ -405,13 +412,28 @@ if st.session_state.page == "Data Upload & Processing":
 # ======================================================================================================================================
 # ======================================================================================================================================
 
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"], help="File size limit: 10MB")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"], help="File size limit: 10MB")
+    with col2:
+        if st.button("Use Default Dataset"):
+            st.session_state.use_default_dataset = True
+            st.rerun()
 
 # ======================================================================================================================================
 # ======================================================================================================================================
 # ======================================================================================================================================
 
-    if uploaded_file is not None:
+    if uploaded_file is not None or st.session_state.use_default_dataset:
+
+        # Determine which file to process
+        if uploaded_file is not None:
+            file_to_process = uploaded_file
+            file_identifier = uploaded_file.name
+            st.session_state.use_default_dataset = False
+        else:
+            file_to_process = st.session_state.default_filepath
+            file_identifier = "shopping_behavior_updated.csv"
 
         #   multipliers to help name a dtype
         st.session_state.min_pct_non_null_to_propose_a_dtype                        = 0.99
@@ -422,11 +444,14 @@ if st.session_state.page == "Data Upload & Processing":
         st.session_state.max_frac_droppable_nan_cat                                 = 0.1 # nans over this frac will be converted to str(NAN)
 
 
-        # Check file size (10MB limit for fly.io)
-        file_size = len(uploaded_file.getvalue())
-        if file_size > 10 * 1024 * 1024:
-            st.error("File size exceeds 10MB limit. Please upload a smaller file.")
-        else:
+        # Check file size (10MB limit for fly.io) - only for uploaded files
+        if uploaded_file is not None:
+            file_size = len(uploaded_file.getvalue())
+            if file_size > 10 * 1024 * 1024:
+                st.error("File size exceeds 10MB limit. Please upload a smaller file.")
+                file_to_process = None
+        
+        if file_to_process is not None:
 
             try:
 
@@ -442,7 +467,7 @@ if st.session_state.page == "Data Upload & Processing":
 
                 # Read CSV to DataFrame
                 # Only re-read CSV when a new file is uploaded; preserve session state data across reruns
-                if st.session_state.uploaded_file_name != uploaded_file.name:
+                if st.session_state.uploaded_file_name != file_identifier:
 
                     # reset dynamic ploting variables
                     st.session_state.group_plot_options = None
@@ -464,8 +489,8 @@ if st.session_state.page == "Data Upload & Processing":
 
 
 
-                    st.session_state.uploaded_file_name = uploaded_file.name
-                    st.session_state.data = pd.read_csv(uploaded_file)   
+                    st.session_state.uploaded_file_name = file_identifier
+                    st.session_state.data = pd.read_csv(file_to_process)   
                     if len(st.session_state.data.shape)<2:
                         st.session_state.data = st.session_state.data.to_frame()
                     # capture original len and shape
@@ -473,6 +498,10 @@ if st.session_state.page == "Data Upload & Processing":
                     st.session_state.original_shape = st.session_state.data.shape
 
                     st.session_state.step = 2
+
+                    # Display which dataset is active
+                    if uploaded_file is None:
+                        st.info("📊 Using default dataset: shopping_behavior_updated.csv")
 
                     # display a sample
                     st.markdown('3 sample rows of existing values')
@@ -902,7 +931,7 @@ if st.session_state.page == "Data Upload & Processing":
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
     else:
-        st.info("Please upload a CSV file to begin analysis.")
+        st.info("Please upload a CSV file or click 'Use Default Dataset' to begin analysis.")
 
     if st.session_state.step==6:
         fit = st.button("Fit the Data")
