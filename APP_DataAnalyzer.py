@@ -288,6 +288,16 @@ if 'target_plot_selection' not in st.session_state:
 def target_plot():
     st.session_state.target_plot_selection = st.session_state.target_plot_control
 
+if 'group_selection' not in st.session_state:
+    st.session_state.group_selection = None
+def  group_chunk_selector():
+    st.session_state.group_selection = st.session_state.group_chunk_select
+
+if 'group_targ_selection' not in st.session_state:
+    st.session_state.group_targ_selection = None
+def  group_targ_chunk_selector():
+    st.session_state.group_targ_selection = st.session_state.group_targ_chunk_select
+
 # functions
 # =======================================================================================================================================
 # =======================================================================================================================================  
@@ -1130,98 +1140,106 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                         st.session_state.seen = []
                         st.session_state.seen_for_plot_selection = None
 
-                    defa = option_titles.index(st.session_state.curr_group_plot_selection) if st.session_state.curr_group_plot_selection else None
-                try:
-                    # default selection
-                    st.session_state.group_plot_selection = st.segment_control("Select a Group to Plot", 
-                                                    option_titles,
-                                                    selection_mode="single",
-                                                    default=defa,
-                                                    on_change = group_plot,
-                                                    key = 'group_plot_control')
-                except:
-                    # default selection
-                    st.session_state.group_plot_selection = st.selectbox("Select a Group to Plot", 
-                                                    option_titles,
-                                                    index=defa,
-                                                    on_change = group_plot,
-                                                    key = 'group_plot_control')
-                
-                # Update session state immediately after widget renders to keep defa
-                if st.session_state.group_plot_selection != st.session_state.curr_group_plot_selection:
-                    st.session_state.curr_group_plot_selection = st.session_state.group_plot_selection
-
-                    ### capture the index. titles and plots match 
-                    ### option_titles  is based on st.session_state.mutated_group_plot_titles which was created with 
-                    ### and is indexed according to st.session_state.group_plot_options
-                    st.session_state.master_group_plot_index = st.session_state.mutated_group_plot_titles.index(st.session_state.group_plot_selection)
-                    selected_group_option = st.session_state.group_plot_options[st.session_state.master_group_plot_index]
-                  
-
-                    # use the index to retrieve the corresponding key for plot params
-                    # note that the plotly_express plots params use underscore. 
-                    param_key = st.session_state.plot_param_keys[st.session_state.master_group_plot_index]
-                    iterable_chunks_of_variables = selected_group_option
-
-                    # st.session_state.seen resets only when user changes the selected plot group.
-                    # st.session_state.seen_for_plot_selection is used to determine if the plot group is changed
-                    if st.session_state.get('seen_for_plot_selection') != st.session_state.group_plot_selection:
-                        st.session_state.seen = []
-                        st.session_state.seen_for_plot_selection = st.session_state.group_plot_selection
-                    seen = st.session_state.setdefault('seen', [])
-                    selected_partition = []
-                    tabs = []
-
-                    # plot one chunk at a time and keep track of which chunks have been plotted 
-                    if not iterable_chunks_of_variables:
-                        st.info('No partitions available for the selected group.')
+                    # Default to first option if no prior selection
+                    if st.session_state.group_plot_selection in option_titles:
+                        defa = option_titles.index(st.session_state.group_plot_selection)
                     else:
-                        select_wid, seen_wid = st.columns([1, 1])
-                        with select_wid:
-                            # identify each chunk as index + 1
-                            chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
-                            if not chunk_options:
-                                group_selection = None
-                            else:
-                                # a number that represents a chunk. it is index = number - 1
-                                group_selection = st.selectbox('Select a Partition Chunk to Plot', chunk_options, index=0)
-                        with seen_wid:
-                            st.markdown(f'Seen Partitions: {sorted(seen)}')                         
+                        defa = 0
+                        # Initialize on first run
+                        st.session_state.group_plot_selection = option_titles[0]
+                        st.session_state.curr_group_plot_selection = option_titles[0]
+                        
+                try:
+                    # Widget with callback - don't assign return value
+                    st.segment_control("Select a Group to Plot", 
+                                      option_titles,
+                                      selection_mode="single",
+                                      default=defa,
+                                      on_change = group_plot,
+                                      key = 'group_plot_control')
+                except:
+                    # Widget with callback - don't assign return value
+                    st.selectbox("Select a Group to Plot", 
+                                option_titles,
+                                index=defa,
+                                on_change = group_plot,
+                                key = 'group_plot_control')
 
-                        if group_selection is None:
-                            st.info('No selectable partition found for the selected group.')
+                ### capture the index. titles and plots match 
+                ### option_titles  is based on st.session_state.mutated_group_plot_titles which was created with 
+                ### and is indexed according to st.session_state.group_plot_options
+                st.session_state.master_group_plot_index = st.session_state.mutated_group_plot_titles.index(st.session_state.group_plot_selection)
+                selected_group_option = st.session_state.group_plot_options[st.session_state.master_group_plot_index]
+                
+
+                # use the index to retrieve the corresponding key for plot params
+                # note that the plotly_express plots params use underscore. 
+                param_key = st.session_state.plot_param_keys[st.session_state.master_group_plot_index]
+                iterable_chunks_of_variables = selected_group_option
+
+                # st.session_state.seen resets only when user changes the selected plot group.
+                # st.session_state.seen_for_plot_selection is used to determine if the plot group is changed
+                if st.session_state.get('seen_for_plot_selection') != st.session_state.group_plot_selection:
+                    st.session_state.seen = []
+                    st.session_state.seen_for_plot_selection = st.session_state.group_plot_selection
+                seen = st.session_state.setdefault('seen', [])
+                selected_partition = []
+                tabs = []
+
+                # plot one chunk at a time and keep track of which chunks have been plotted 
+                if not iterable_chunks_of_variables:
+                    st.info('No partitions available for the selected group.')
+                else:
+                    select_wid, seen_wid = st.columns([1, 1])
+                    with select_wid:
+                        # identify each chunk as index + 1
+                        chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
+                        if not chunk_options:
+                            st.session_state.group_selection = None
                         else:
-                            if group_selection not in seen:
-                                seen.append(group_selection)
+                            # a number that represents a chunk. it is index = number - 1
+                            st.session_state.group_selection = st.selectbox('Select a Partition Chunk to Plot', 
+                                                            chunk_options, 
+                                                            index=0,
+                                                            on_change=group_chunk_selector,
+                                                            key='group_chunk_select')
+                    with seen_wid:
+                        st.markdown(f'Seen Partitions: {sorted(seen)}')                         
 
-                            # select a chunk of pairs/univariates to plot
-                            selected_partition = iterable_chunks_of_variables[group_selection - 1]
+                    if st.session_state.group_selection is None:
+                        st.info('No selectable partition found for the selected group.')
+                    else:
+                        if st.session_state.group_selection not in seen:
+                            seen.append(st.session_state.group_selection)
 
-                            def _tab_title(variable_to_plot):
-                                if isinstance(variable_to_plot, (list, tuple)):
-                                    return ' | '.join([str(v) for v in variable_to_plot])
-                                return str(variable_to_plot)
+                        # select a chunk of pairs/univariates to plot
+                        selected_partition = iterable_chunks_of_variables[st.session_state.group_selection - 1]
 
-                            tab_titles = [_tab_title(v) for v in selected_partition]
-                            tabs = st.tabs(tab_titles) if tab_titles else []
+                        def _tab_title(variable_to_plot):
+                            if isinstance(variable_to_plot, (list, tuple)):
+                                return ' | '.join([str(v) for v in variable_to_plot])
+                            return str(variable_to_plot)
+
+                        tab_titles = [_tab_title(v) for v in selected_partition]
+                        tabs = st.tabs(tab_titles) if tab_titles else []
 
 
-                    for tab, variable_to_plot in zip(tabs, selected_partition):
-                        with tab:
-                           # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
-                            var_type_plot = st.session_state.plot_list_keys[st.session_state.master_group_plot_index]
-                            #retrieve the appropriate plot function
-                            plot_func_ = st.session_state.plot_function[st.session_state.master_group_plot_index]
-                            # retrieve the plot parameters
-                            curr_params = st.session_state.plot_params_dict[param_key].copy()
-                            # process and plot one plot for each iteration in the chunk
-                            plot_one_title(
-                                    data = st.session_state.data,
-                                    variable_to_plot=variable_to_plot,
-                                    curr_params=curr_params,  
-                                    var_type_plot=var_type_plot,
-                                    plot_func_=plot_func_)
-                            
+                for tab, variable_to_plot in zip(tabs, selected_partition):
+                    with tab:
+                        # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
+                        var_type_plot = st.session_state.plot_list_keys[st.session_state.master_group_plot_index]
+                        #retrieve the appropriate plot function
+                        plot_func_ = st.session_state.plot_function[st.session_state.master_group_plot_index]
+                        # retrieve the plot parameters
+                        curr_params = st.session_state.plot_params_dict[param_key].copy()
+                        # process and plot one plot for each iteration in the chunk
+                        plot_one_title(
+                                data = st.session_state.data,
+                                variable_to_plot=variable_to_plot,
+                                curr_params=curr_params,  
+                                var_type_plot=var_type_plot,
+                                plot_func_=plot_func_)
+                        
 
 
 
@@ -1342,7 +1360,7 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                             st.session_state.curr_target_plot_selection = None
                             st.session_state.master_target_plot_index = None
                             st.session_state.seen_tar = []
-                            st.session_state.seen_tar_for_plot_selection = None
+                            st.session_state.tar_for_plot_selection = None
                             st.info("No plottable targets found for the current dataset/settings.")
                             plot_selection = None
                         else:
@@ -1350,100 +1368,108 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
                                 st.session_state.curr_target_plot_selection = None
                                 st.session_state.master_target_plot_index = None
                                 st.session_state.seen_tar = []
-                                st.session_state.seen_tar_for_plot_selection = None
+                                st.session_state.tar_for_plot_selection = None
 
-                            defa = option_titles.index(st.session_state.curr_target_plot_selection) if st.session_state.curr_target_plot_selection else None
-                        try:
-                            # default selection
-                            st.session_state.target_plot_selection = st.segment_control("Select a Group to Plot", 
-                                                            option_titles,
-                                                            selection_mode = "single",
-                                                            default = defa,
-                                                            key = 'target_plot_control',
-                                                            on_change =target_plot)
-                        except:
-                            # default selection
-                            st.session_state.target_plot_selection = st.selectbox("Select a Group to Plot", 
-                                                            option_titles,
-                                                            index = defa,
-                                                            key = 'target_plot_control',
-                                                            on_change = target_plot)
-                        
-                        # Update session state immediately after widget renders to keep defa on reruns
-                        if st.session_state.target_plot_selection != st.session_state.curr_target_plot_selection:
-                            st.session_state.curr_target_plot_selection = st.session_state.target_plot_selection
-
-                            ### capture the index. titles and plots match 
-                            ### option_titles  is based on st.session_state.mutated_target_plot_titles which was created with 
-                            ### and is indexed according to st.session_state.target_plot_options
-                            st.session_state.master_target_plot_index = st.session_state.mutated_target_plot_titles.index(st.session_state.target_plot_selection)
-                            selected_target_option = st.session_state.target_plot_options[st.session_state.master_target_plot_index]
-                        
-
-                            # use the index to retrieve the corresponding key for plot params
-                            # note that the plotly_express plots params use underscore. 
-                            param_key = st.session_state.plot_param_keys[st.session_state.master_target_plot_index]
-                            iterable_chunks_of_variables = selected_target_option
-
-                            # st.session_state.seen_tar resets only when user changes the selected plot group.
-                            # st.session_state.seen_tar_for_plot_selection is used to determine if the plot group is changed
-                            if st.session_state.get('seen_tar_for_plot_selection') != st.session_state.target_plot_selection:
-                                st.session_state.seen_tar = []
-                                st.session_state.seen_tar_for_plot_selection = st.session_state.target_plot_selection
-                            seen = st.session_state.setdefault('seen_tar', [])
-                            selected_partition = []
-                            tabs = []
-
-                            # plot one chunk at a time and keep track of which chunks have been plotted 
-                            if not iterable_chunks_of_variables:
-                                st.info('No partitions available for the selected group.')
+                            # Default to first option if no prior selection
+                            if st.session_state.target_plot_selection in option_titles:
+                                defa = option_titles.index(st.session_state.target_plot_selection)
                             else:
-                                select_wid, seen_wid = st.columns([1, 1])
-                                with select_wid:
-                                    # identify each chunk as index + 1
-                                    chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
-                                    if not chunk_options:
-                                        group_selection = None
-                                    else:
-                                        # a number that represents a chunk. it is index = number - 1
-                                        group_selection = st.selectbox('Select a Partition Chunk to Plot', chunk_options, index=0)
-                                with seen_wid:
-                                    st.markdown(f'Seen Partitions: {sorted(seen)}')                         
+                                defa = 0
+                                # Initialize on first run
+                                st.session_state.target_plot_selection = option_titles[0]
+                                st.session_state.curr_target_plot_selection = option_titles[0]
+                                
+                        try:
+                            # Widget with callback - don't assign return value
+                            st.segment_control("Select a Group to Plot", 
+                                              option_titles,
+                                              selection_mode = "single",
+                                              default = defa,
+                                              key = 'target_plot_control',
+                                              on_change =target_plot)
+                        except:
+                            # Widget with callback - don't assign return value
+                            st.selectbox("Select a Group to Plot", 
+                                        option_titles,
+                                        index = defa,
+                                        key = 'target_plot_control',
+                                        on_change = target_plot)
 
-                                if group_selection is None:
-                                    st.info('No selectable partition found for the selected group.')
+                        ### capture the index. titles and plots match 
+                        ### option_titles  is based on st.session_state.mutated_target_plot_titles which was created with 
+                        ### and is indexed according to st.session_state.target_plot_options
+                        st.session_state.master_target_plot_index = st.session_state.mutated_target_plot_titles.index(st.session_state.target_plot_selection)
+                        selected_target_option = st.session_state.target_plot_options[st.session_state.master_target_plot_index]
+                    
+
+                        # use the index to retrieve the corresponding key for plot params
+                        # note that the plotly_express plots params use underscore. 
+                        param_key = st.session_state.plot_param_keys[st.session_state.master_target_plot_index]
+                        iterable_chunks_of_variables = selected_target_option
+
+                        # st.session_state.seen_tar resets only when user changes the selected plot group.
+                        # st.session_state.tar_for_plot_selection is used to determine if the plot group is changed
+                        if st.session_state.get('tar_for_plot_selection') != st.session_state.target_plot_selection:
+                            st.session_state.seen_tar = []
+                            st.session_state.tar_for_plot_selection = st.session_state.target_plot_selection
+                        seen = st.session_state.setdefault('seen_tar', [])
+                        selected_partition = []
+                        tabs = []
+
+                        # plot one chunk at a time and keep track of which chunks have been plotted 
+                        if not iterable_chunks_of_variables:
+                            st.info('No partitions available for the selected group.')
+                        else:
+                            select_wid, seen_wid = st.columns([1, 1])
+                            with select_wid:
+                                # identify each chunk as index + 1
+                                chunk_options = [i + 1 for i in range(len(iterable_chunks_of_variables))]
+                                if not chunk_options:
+                                    st.session_state.group_targ_selection = None
                                 else:
-                                    if group_selection not in seen:
-                                        seen.append(group_selection)
+                                    # a number that represents a chunk. it is index = number - 1
+                                    st.session_state.group_targ_selection = st.selectbox('Select a Partition Chunk to Plot', 
+                                                                                            chunk_options, 
+                                                                                            index=0,
+                                                                                            on_change = group_targ_chunk_selector,
+                                                                                            key = 'group_targ_chunk_select')
+                            with seen_wid:
+                                st.markdown(f'Seen Partitions: {sorted(seen)}')                         
 
-                                    # select a chunk of pairs/univariates to plot
-                                    selected_partition = iterable_chunks_of_variables[group_selection - 1]
+                            if st.session_state.group_targ_selection is None:
+                                st.info('No selectable partition found for the selected group.')
+                            else:
+                                if st.session_state.group_targ_selection not in seen:
+                                    seen.append(st.session_state.group_targ_selection)
 
-                                    def _tab_title(variable_to_plot):
-                                        if isinstance(variable_to_plot, (list, tuple)):
-                                            return ' | '.join([str(v) for v in variable_to_plot])
-                                        return str(variable_to_plot)
+                                # select a chunk of pairs/univariates to plot
+                                selected_partition = iterable_chunks_of_variables[st.session_state.group_targ_selection - 1]
 
-                                    tab_titles = [_tab_title(v) for v in selected_partition]
-                                    tabs = st.tabs(tab_titles) if tab_titles else []
+                                def _tab_title(variable_to_plot):
+                                    if isinstance(variable_to_plot, (list, tuple)):
+                                        return ' | '.join([str(v) for v in variable_to_plot])
+                                    return str(variable_to_plot)
+
+                                tab_titles = [_tab_title(v) for v in selected_partition]
+                                tabs = st.tabs(tab_titles) if tab_titles else []
 
 
-                            for tab, variable_to_plot in zip(tabs, selected_partition):
-                                with tab:
-                                # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
-                                    var_type_plot = st.session_state.plot_list_keys[st.session_state.master_target_plot_index]
-                                    #retrieve the appropriate plot function
-                                    plot_func_ = st.session_state.plot_function[st.session_state.master_target_plot_index]
-                                    # retrieve the plot parameters
-                                    curr_params = st.session_state.plot_params_dict[param_key].copy()
-                                    # process and plot one plot for each iteration in the chunk
-                                    plot_one_title(
-                                            data = st.session_state.data,
-                                            variable_to_plot=variable_to_plot,
-                                            curr_params=curr_params,  
-                                            var_type_plot=var_type_plot,
-                                            plot_func_=plot_func_)
-                                    
+                        for tab, variable_to_plot in zip(tabs, selected_partition):
+                            with tab:
+                            # identify variable(s) type of plot numeric-categoric bivariate, numeric univariate etc
+                                var_type_plot = st.session_state.plot_list_keys[st.session_state.master_target_plot_index]
+                                #retrieve the appropriate plot function
+                                plot_func_ = st.session_state.plot_function[st.session_state.master_target_plot_index]
+                                # retrieve the plot parameters
+                                curr_params = st.session_state.plot_params_dict[param_key].copy()
+                                # process and plot one plot for each iteration in the chunk
+                                plot_one_title(
+                                        data = st.session_state.data,
+                                        variable_to_plot=variable_to_plot,
+                                        curr_params=curr_params,  
+                                        var_type_plot=var_type_plot,
+                                        plot_func_=plot_func_)
+                                
 
 
 
