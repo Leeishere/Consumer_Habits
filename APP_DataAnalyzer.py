@@ -3,6 +3,7 @@ import pandas as pd
 import pathlib
 import streamlit as st
 import plotly.express as px
+import datetime
 
 from utils.AnalyzeDataset import AnalyzeDataset
 from utils.utils_APP_DataAnalyzer import chunk_plotables_mutate_titles, plot_one_title
@@ -821,10 +822,11 @@ if st.session_state.page == "Data Upload & Processing":
                         if 0 < len(st.session_state.data.shape) < 2:
                             st.session_state.data = st.session_state.data.to_frame()
                         if st.session_state.data.shape[1] == 0:
-                            st.info("All Columns Have Been Dropped. There is No Data to Process.")
-
+                            st.warning("⚠️ All columns have been dropped. No data to process.")
+                            st.info("💡 Upload a new file or reload the page to start over.")
                             st.session_state.early_stop = True
                             st.session_state.step = 1
+                            st.stop()  # ✅ Clean halt with clear next steps
 
 
 
@@ -1068,7 +1070,10 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
         #st.session_state.super_subcat_pairs_params['y_tick_fontsize'] = selected_y_tick_fontsize
 
   
-    if st.session_state.step < 7:
+    if (st.session_state.step < 7 or 
+        st.session_state.data is None or 
+        'AD' not in st.session_state or 
+        st.session_state.AD is None):
         st.info("The Data Hasn't Been Fit.")
     else:
         # PLOT GROUPS
@@ -1126,6 +1131,7 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
                 # create a list of mutated titles that matches the index and is within the plot selection gate
                 option_titles = [st.session_state.mutated_group_plot_titles[i] for i in st.session_state.plottable_group_indexes]
+                defa = 0
                 if not option_titles:
                     st.session_state.curr_group_plot_selection = None
                     st.session_state.master_group_plot_index = None
@@ -1356,6 +1362,7 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
                         # create a list of mutated titles that matches the index and is within the plot selection gate
                         option_titles = [st.session_state.mutated_target_plot_titles[i] for i in st.session_state.plottable_target_indexes]
+                        defa = 0
                         if not option_titles:
                             st.session_state.curr_target_plot_selection = None
                             st.session_state.master_target_plot_index = None
@@ -1477,7 +1484,6 @@ elif st.session_state.page in ["Group Visualizations", "Target Visualizations"]:
 
 #----------------------------------------------------------------------------------------------------------------------
 elif st.session_state.page == "Feedback":
-    import datetime
 
     FEEDBACK_FILE = "data_analyzer_app_feedback.txt"
 
