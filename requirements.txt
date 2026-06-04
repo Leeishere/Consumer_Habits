@@ -1,4 +1,4 @@
--e ../../repos/data_analysis_utils
+git+https://github.com/Leeishere/data_analysis_utils.git@main
 streamlit
 pandas
 numpy
