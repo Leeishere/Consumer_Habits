@@ -5,7 +5,7 @@ import streamlit as st
 import plotly.express as px
 import datetime
 
-from utils.AnalyzeDataset import AnalyzeDataset
+from data_analysis_utils import AnalyzeDataset
 from utils.utils_APP_DataAnalyzer import chunk_plotables_mutate_titles, plot_one_title
 
 
