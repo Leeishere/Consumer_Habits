@@ -17,7 +17,7 @@ from joblib import Parallel, delayed
 class ANOVA:
     def __init__(self):
         self.two_way_interaction_columns=None
-        self.two_way_interaction_sizes=None
+        self.two_way_interaction_sizes=None 
 
     # =========================================================================================================================================================================
     # 5 functions that check assumptions for ONE-WAY-ANOVA
@@ -83,7 +83,7 @@ class ANOVA:
         
         dropna=False
 
-        counts = df.groupby('group',dropna=dropna)['y'].size()
+        counts = df.groupby('group',dropna=dropna,observed=True)['y'].size()
         if retrieve_meta == True:
             return counts.rename('count_obs')
         result =bool((counts >= min_n).all())
@@ -170,7 +170,7 @@ class ANOVA:
                             'p': p,
                             'normal': p>alpha,
                             'note': 'n>=3'})
-            return df.groupby('group',dropna=dropna)['y'].apply(norm_test).rename('is_normal')
+            return df.groupby('group',dropna=dropna,observed=True)['y'].apply(norm_test).rename('is_normal')
         
         def norm_test(vals):
                 vals=vals.dropna()
@@ -189,7 +189,7 @@ class ANOVA:
                     print(w[-1].message)"""
                 return  p > alpha             
 
-        result = (df.groupby('group',dropna=dropna)['y'].apply(norm_test)).all() 
+        result = (df.groupby('group',dropna=dropna,observed=True)['y'].apply(norm_test)).all() 
         return result
     
     # 3) Homogeneity of variance (Levene – more robust than Bartlett)
@@ -246,7 +246,7 @@ class ANOVA:
         
         dropna=False
 
-        grouped = [vals.values for _, vals in df.groupby('group',dropna=dropna)['y']]
+        grouped = [vals.values for _, vals in df.groupby('group',dropna=dropna,observed=True)['y']]
         if len(grouped) < 2:
             return False   # can't test homogeneity with only 1 group
         
@@ -320,8 +320,8 @@ class ANOVA:
         #############################################################################################
         # add a how parameter here to either identify outliers based on z score or on relation to iqr
         #############################################################################################
-        q1 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.25))
-        q3 = df.groupby('group',dropna=dropna)['y'].transform(lambda x: x.quantile(0.75))
+        q1 = df.groupby('group',dropna=dropna,observed=True)['y'].transform(lambda x: x.quantile(0.25))
+        q3 = df.groupby('group',dropna=dropna,observed=True)['y'].transform(lambda x: x.quantile(0.75))
         iqr = q3 - q1
         lower = q1 - iqr_multiplier * iqr
         upper = q3 + iqr_multiplier * iqr
@@ -329,7 +329,7 @@ class ANOVA:
         df['is_outlier'] = (df['y'] < lower) | (df['y'] > upper)
 
         if retrieve_meta == True:
-            return df.groupby('group',dropna=dropna)['is_outlier'].sum().rename('count_outliers')
+            return df.groupby('group',dropna=dropna,observed=True)['is_outlier'].sum().rename('count_outliers')
 
         return df.loc[~df['is_outlier']].drop(columns='is_outlier')
 
@@ -562,7 +562,7 @@ class ANOVA:
         
         grouped = (
             df[[x_col, y_col]]
-            .groupby(x_col,as_index=True)[y_col]
+            .groupby(x_col,as_index=True,observed=True)[y_col]
             .apply(np.asarray)
         )
 
@@ -600,7 +600,7 @@ class ANOVA:
                 pct_reject = sum_reject/total  # based on number of combos
                 group_sizes = 2*total/len(keys)  # the group can be in left or right column
                 sums_df = pd.DataFrame(np.zeros(len(keys)),index=keys,columns=['totals'])
-                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True).size().rename('count_2')
+                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True,observed=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True,observed=True).size().rename('count_2')
                 sums_df = pd.merge(sums_df, m1, how='left',left_index=True, right_index=True)
                 sums_df = pd.merge(sums_df, m2, how='left',left_index=True, right_index=True).fillna(0)
                 # make sure NaNs have been filled
@@ -636,7 +636,7 @@ class ANOVA:
                 pct_reject = sum_reject/total  # based on number of combos
                 group_sizes = 2*total/len(keys)  # the group can be in left or right column
                 sums_df = pd.DataFrame(np.zeros(len(keys)),index=keys,columns=['totals'])
-                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True).size().rename('count_2')
+                m1, m2 = base_df.loc[bool_df].groupby(x_col+"_1",as_index=True,observed=True).size().rename('count_1'), base_df.loc[bool_df].groupby(x_col+"_2",as_index=True,observed=True).size().rename('count_2')
                 sums_df = pd.merge(sums_df, m1, how='left',left_index=True, right_index=True)
                 sums_df = pd.merge(sums_df, m2, how='left',left_index=True, right_index=True).fillna(0)
                 # make sure NaNs have been filled
@@ -704,7 +704,7 @@ class ANOVA:
         dropna = False
             
         # --- 1. spread similarity (Levene) ---
-        groups = [vals.values  for _, vals in df.groupby('group',dropna=dropna)['y']]
+        groups = [vals.values  for _, vals in df.groupby('group',dropna=dropna,observed=True)['y']]
         if len(groups)<2:
             return False
         if any([len(i)<3 for i in groups]):
@@ -791,7 +791,7 @@ class ANOVA:
         keys = df['group'].unique()
 
         summary = (
-            df.groupby('group', dropna=dropna)['y']
+            df.groupby('group', dropna=dropna, observed=True)['y']
             .agg(
                 n='size',
                 median='median',
@@ -803,7 +803,7 @@ class ANOVA:
         )
 
         # --- variance equality (robust) ---
-        groups = [g['y'].values for _, g in df.groupby('group',dropna=dropna)]
+        groups = [g['y'].values for _, g in df.groupby('group',dropna=dropna,observed=True)]
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             levene_stat, levene_p = scipy.stats.levene(*groups, center='median')            
@@ -994,7 +994,7 @@ class ANOVA:
                 weights=None
                 if stratify!=None:
                     three_col_XX_y[binned_y] = stratify
-                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y],observed=True).transform('size')
                 data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=False, weights=weights)
                 result.append(data)
             if override_min==True:
@@ -1004,7 +1004,7 @@ class ANOVA:
                     weights=None
                     if stratify!=None:
                         three_col_XX_y[binned_y] = stratify
-                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y],observed=True).transform('size')
                     data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
                     result.append(data)
         elif ntile is None:
@@ -1013,7 +1013,7 @@ class ANOVA:
                 weights=None
                 if stratify!=None:
                     three_col_XX_y[binned_y] = stratify
-                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                    weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y],observed=True).transform('size')
                 data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows, replace=False)
                 result.append(data)
             if override_min==True:
@@ -1023,7 +1023,7 @@ class ANOVA:
                     weights=None
                     if stratify!=None:
                         three_col_XX_y[binned_y] = stratify
-                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y]).transform('size')
+                        weights = three_col_XX_y.loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].groupby([x1,x2,binned_y],observed=True).transform('size')
                     data=three_col_XX_y[[x1,x2]].loc[(three_col_XX_y[x1]==interaction[0])&(three_col_XX_y[x2]==interaction[1])].sample(n_rows,replace=True)
                     result.append(data)
         if override_min==True:

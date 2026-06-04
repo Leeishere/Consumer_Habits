@@ -1,0 +1,28 @@
+ColumnComparison change references to BivariateAnalysis
+binner revise (scale 1 bin problems) and create new binner func w abs min bins option, ordinalizer, binned, and fit(fit: such that it can be called on an observation)
+
+
+
+
+
+
+long term: 
+
+create a quickstart for mu estimator
+a quickstart for poisson forecasting 
+    use masking instead of lists to avoide memory consumption when excessive 0 padding
+
+Review Docs
+
+investigate ways to score related and unrelated groups
+-i'm thinking along lines of tfidf score, but documents isn't the same as unsepervised groups, so I'll need to figure a way to do that
+-use cases should be columns within a dataframe -or- subcategories within a column
+
+
+
+BinnerClass.py
+(this is likely not an issue, 
+but this function will need revision or extrogeneous class features to make binning scales savable):
+Line 32: Potential Division by Zero error. If the input vector x contains only identical values or if all values fall into the same bin, digitized_max - digitized_min will be zero, causing the rescaling calculation to fail.
+(the input will prevent non threshold instances, but it could be more robust): 
+Line 161: Potential ValueError. If mins_for_each_col is an empty list (which can happen if no columns meet the relationship threshold), max(mins_for_each_col) will raise an exception.

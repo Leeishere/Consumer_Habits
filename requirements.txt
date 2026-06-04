@@ -1,10 +1,12 @@
+-e ../../repos/data_analysis_utils
 streamlit
 pandas
 numpy
 scipy
+imbalanced-learn
+xgboost
 matplotlib
 seaborn
 plotly
 joblib
-pathlib
 statsmodels

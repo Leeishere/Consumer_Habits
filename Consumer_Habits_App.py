@@ -8,10 +8,10 @@ import scipy
 from scipy import stats,special
 import streamlit as st
 
-from utils.PoissonSalesForecasting import PoissonSalesForecasting
-from utils.MuEstimator import MuEstimator
-from utils.BinnerClass import Bin
-from utils.CompareColumns import CompareColumns
+from data_analysis_utils.PoissonSalesForecasting import PoissonSalesForecasting
+from data_analysis_utils.MuEstimator import MuEstimator
+from data_analysis_utils.BinnerClass import Bin
+from data_analysis_utils.CompareColumns import CompareColumns
 
 import pathlib
 
