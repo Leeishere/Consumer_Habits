@@ -1,14 +1,15 @@
 
-from .BinnerClass import Bin
+from data_analysis_utils.BinnerClass import Bin
 import pathlib
 import pandas as pd
 bin=Bin()
+bin2=Bin()
 
 
 def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
     """
     """
-    global bin
+    global bin, bin2
 
     behavior=pathlib.Path(filepath)
     df=pd.read_csv(behavior)
@@ -43,7 +44,7 @@ def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
         df[f"{k}_Binned"]=df[f"{k}_Binned"].astype(float).round(2)
         df[f"{k}_Ordinalized"]=bin.binner(df[k],v,rescale=False)
         df[f"{k}_Ordinalized"]=df[f"{k}_Ordinalized"].astype('object')
-    
+
 
     
     return df
