@@ -19,3 +19,6 @@ data_analyzer_app.py
 utils/ExperimentalClassificationHelperFuntions.py
 HospitalClinicalDeterioration/junk
 Projects/Consumer_Habits/Consumer_Habits.ipynb
+.devcontainer
+.github
+.vscode
