@@ -39,7 +39,10 @@ def load_consumer_habits(filepath:str="utils/shopping_behavior_updated.csv"):
                     numeric_target=None,      
                     categoric_target=None) 
     for k, v in bin.numeric_target_column_minimums.items():
-        v=max(v,5)
+        if v is None:
+            v=5
+        else:
+            v=max(v,5)
         df[f"{k}_Binned"]=bin.binner(df[k],v,rescale=True)
         df[f"{k}_Binned"]=df[f"{k}_Binned"].astype(float).round(2)
         df[f"{k}_Ordinalized"]=bin.binner(df[k],v,rescale=False)
